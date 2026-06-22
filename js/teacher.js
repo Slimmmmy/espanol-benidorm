@@ -41,6 +41,8 @@ function renderLesson(container) {
 
 async function checkLesson(container) {
   const status = container.querySelector('#tch-status');
+  const btn = container.querySelector('#tch-check');
+  if (btn) btn.disabled = true;
   const answers = collectAnswers(container);
   status.textContent = 'Проверяю…';
   try {
@@ -48,10 +50,12 @@ async function checkLesson(container) {
     if (!container.querySelector('#tch-results')) return;
     status.textContent = '';
     const e = escapeHtml;
-    const results = (r.results || []).map((res, i) =>
-      `<div class="lesson-ex"><div class="${res.correct ? 'gr-ok' : 'gr-bad'}">${res.correct ? '✅' : '❌'} ${i + 1}</div><div class="word-ex">${e(res.comment || '')}</div></div>`).join('');
-    const total = (r.results || []).length;
-    const correct = (r.results || []).filter((x) => x.correct).length;
+    const exCount = (lesson.exercises || []).length;
+    const resList = (r.results || []).slice(0, exCount);
+    const results = resList.map((res, i) =>
+      `<div class="lesson-ex"><div class="${!!res.correct ? 'gr-ok' : 'gr-bad'}">${!!res.correct ? '✅' : '❌'} ${i + 1}</div><div class="word-ex">${e(res.comment || '')}</div></div>`).join('');
+    const total = exCount;
+    const correct = resList.filter((x) => !!x.correct).length;
     container.querySelector('#tch-results').innerHTML = `
       ${results}
       <div class="study-card"><b>Итог: ${correct}/${total}</b>
@@ -65,6 +69,7 @@ async function checkLesson(container) {
     const again = container.querySelector('#tch-again');
     if (again) again.onclick = () => render(container);
   } catch (err) {
+    if (btn) btn.disabled = false;
     const s = container.querySelector('#tch-status');
     if (s) s.textContent = err.message;
   }
@@ -72,6 +77,8 @@ async function checkLesson(container) {
 
 async function startLesson(container, topic) {
   const status = container.querySelector('#tch-status');
+  const btn = container.querySelector('#tch-start');
+  if (btn) btn.disabled = true;
   status.textContent = 'Готовлю урок под твой уровень…';
   try {
     const profile = await buildProfile();
@@ -79,15 +86,16 @@ async function startLesson(container, topic) {
     if (!container.querySelector('#tch-status')) return;
     renderLesson(container);
   } catch (err) {
+    if (btn) btn.disabled = false;
     const s = container.querySelector('#tch-status');
     if (s) s.textContent = err.message;
   }
 }
 
 async function render(container) {
-  container.innerHTML = '<h1>Учитель</h1><p class="status">Анализирую твой уровень…</p>';
+  container.innerHTML = '<h1>Учитель</h1><p class="status" id="tch-loading">Анализирую твой уровень…</p>';
   const profile = await buildProfile();
-  if (!container.isConnected) return;
+  if (!container.querySelector('#tch-loading')) return;
   const e = escapeHtml;
   const recommended = pickNextTopic(profile.weak, profile.lastTopic);
   container.innerHTML = `

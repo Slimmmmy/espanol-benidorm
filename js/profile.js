@@ -27,7 +27,7 @@ export async function buildProfile() {
 export async function saveProfileNote(note, lastTopic) {
   const tp = (await getSetting('teacherProfile')) || {};
   tp.note = note;
-  if (lastTopic) tp.lastTopic = lastTopic;
+  if (lastTopic !== undefined) tp.lastTopic = lastTopic;
   tp.updatedAt = Date.now();
   await setSetting('teacherProfile', tp);
 }
