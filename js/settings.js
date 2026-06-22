@@ -33,13 +33,13 @@ async function render(container) {
     <button id="set-test">Проверить связь</button>
     <h2>Синхронизация (между устройствами)</h2>
     <label>Supabase URL
-      <input id="set-surl" type="text" placeholder="https://xxxx.supabase.co" value="${supabaseUrl}">
+      <input id="set-surl" type="text" placeholder="https://xxxx.supabase.co">
     </label>
     <label>Supabase anon-ключ
-      <input id="set-skey" type="password" value="${supabaseKey}">
+      <input id="set-skey" type="password">
     </label>
     <label>Код синхронизации (одинаковый на всех устройствах)
-      <input id="set-scode" type="text" value="${syncCode}">
+      <input id="set-scode" type="text">
     </label>
     <button id="set-sync">Синхронизировать сейчас</button>
     <p id="set-status" class="status"></p>
@@ -47,6 +47,9 @@ async function render(container) {
   container.querySelector('#set-model').value = model;
   container.querySelector('#set-level').value = level;
   container.querySelector('#set-key').value = apiKey;
+  container.querySelector('#set-surl').value = supabaseUrl;
+  container.querySelector('#set-skey').value = supabaseKey;
+  container.querySelector('#set-scode').value = syncCode;
 
   const status = container.querySelector('#set-status');
 
