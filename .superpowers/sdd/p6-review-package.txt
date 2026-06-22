@@ -1,0 +1,377 @@
+# Review package: plan-6-teacher (67c86df..HEAD)
+
+## Commits
+a94c87c feat: wire teacher screen, cache v6, lesson styles
+d196011 feat: teacher assistant screen (adaptive lessons, review, profile update)
+b60bfa9 feat: generateLesson and reviewLesson AI calls
+18917e3 feat: learner profile module with pickNextTopic and tests
+
+## Stat
+ css/styles.css       |   4 ++
+ index.html           |   1 +
+ js/claude.js         |  25 +++++++++++-
+ js/profile.js        |  43 ++++++++++++++++++++
+ js/prompts.js        |  22 ++++++++++
+ js/teacher.js        | 111 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ sw.js                |   3 +-
+ test/profile.test.js |  22 ++++++++++
+ 8 files changed, 229 insertions(+), 2 deletions(-)
+
+## Full diff
+diff --git a/css/styles.css b/css/styles.css
+index de598d8..1ff8eef 100644
+--- a/css/styles.css
++++ b/css/styles.css
+@@ -40,10 +40,14 @@ button.ok { background:#22c55e; }
+ .gr-bad { color:#fbbf24; font-weight:600; }
+ .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+ .stat { background:var(--card); border:1px solid #334155; border-radius:12px; padding:16px; text-align:center; }
+ .stat-num { font-size:30px; font-weight:700; color:var(--accent); }
+ .stat-lbl { color:var(--muted); font-size:13px; margin-top:4px; }
+ .sp-score { font-size:18px; font-weight:600; margin:10px 0; }
+ .daily-progress { color:var(--accent); font-weight:700; font-size:16px; }
+ .daily-added { color:var(--accent); align-self:center; font-size:14px; }
+ .daily-apply { margin-top:10px; }
+ .daily-feedback { margin-top:8px; }
++.lesson-ex { margin:14px 0; }
++.ex-prompt { font-weight:600; margin-bottom:6px; }
++.opt-row { display:block; margin:5px 0; color:var(--fg); font-weight:400; cursor:pointer; }
++.opt-row input { width:auto; margin-right:8px; }
+diff --git a/index.html b/index.html
+index d09203c..0ec7f1d 100644
+--- a/index.html
++++ b/index.html
+@@ -10,20 +10,21 @@
+   <link rel="manifest" href="manifest.webmanifest">
+   <link rel="apple-touch-icon" href="icons/icon-192.png">
+   <link rel="stylesheet" href="css/styles.css">
+   <title>Español Benidorm</title>
+ </head>
+ <body>
+   <main id="screen"></main>
+   <nav id="nav"></nav>
+   <script type="module">
+     import { startApp } from './js/app.js';
++    import './js/teacher.js';
+     import './js/study.js';
+     import './js/daily.js';
+     import './js/dictionary.js';
+     import './js/listening.js';
+     import './js/speech.js';
+     import './js/grammar.js';
+     import './js/progress.js';
+     import './js/settings.js';
+     startApp();
+     if ('serviceWorker' in navigator) {
+diff --git a/js/claude.js b/js/claude.js
+index a716646..fe2d197 100644
+--- a/js/claude.js
++++ b/js/claude.js
+@@ -1,13 +1,13 @@
+ import { getSetting } from './db.js';
+ import { extractJson } from './util.js';
+-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM } from './prompts.js';
++import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM } from './prompts.js';
+ 
+ export const DEFAULT_MODEL = 'claude-haiku-4-5';
+ const API_URL = 'https://api.anthropic.com/v1/messages';
+ 
+ export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
+   const apiKey = await getSetting('apiKey');
+   if (!apiKey) {
+     throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
+   }
+   const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
+@@ -96,10 +96,33 @@ export async function gradeSpeech(target, heard) {
+ 
+ export async function generateDailyWords(knownEs = []) {
+   const known = knownEs.slice(0, 200).join(', ');
+   const text = await callClaude({
+     system: DAILY_WORDS_SYSTEM,
+     messages: [{ role: 'user', content: `Слова, которые ученик уже знает (не повторяй их): ${known || '(пока пусто)'}` }],
+     maxTokens: 800,
+   });
+   return extractJson(text);
+ }
++
++export async function generateLesson(profile, topic) {
++  const text = await callClaude({
++    system: LESSON_GEN_SYSTEM,
++    messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\nТема урока: ${topic}` }],
++    maxTokens: 1200,
++  });
++  return extractJson(text);
++}
++
++export async function reviewLesson(lesson, answers) {
++  const items = (lesson.exercises || []).map((ex, i) => ({
++    prompt: ex.prompt,
++    expected: ex.type === 'choice' ? (ex.options || [])[ex.answer] : ex.expected,
++    answer: answers[i] || '',
++  }));
++  const text = await callClaude({
++    system: LESSON_REVIEW_SYSTEM,
++    messages: [{ role: 'user', content: `Тема: ${lesson.topic}\nУпражнения и ответы ученика: ${JSON.stringify(items)}` }],
++    maxTokens: 900,
++  });
++  return extractJson(text);
++}
+diff --git a/js/profile.js b/js/profile.js
+new file mode 100644
+index 0000000..b4d6cd1
+--- /dev/null
++++ b/js/profile.js
+@@ -0,0 +1,43 @@
++import { getSetting, setSetting } from './db.js';
++import { getStats } from './stats.js';
++
++export function pickNextTopic(weak, lastTopic) {
++  if (!weak || weak.length === 0) return 'Общая практика грамматики';
++  const sorted = [...weak].sort((a, b) => b.count - a.count);
++  const pick = sorted.find((w) => w.topic !== lastTopic) || sorted[0];
++  return pick.topic;
++}
++
++export async function buildProfile() {
++  const stats = await getStats();
++  const level = (await getSetting('level')) || 'A2-B1';
++  const tp = (await getSetting('teacherProfile')) || {};
++  const history = (await getSetting('lessonHistory')) || [];
++  return {
++    level,
++    words: stats.words,
++    learned: stats.learned,
++    weak: stats.weak,
++    note: tp.note || '',
++    lastTopic: tp.lastTopic || '',
++    lessonsCompleted: history.length,
++  };
++}
++
++export async function saveProfileNote(note, lastTopic) {
++  const tp = (await getSetting('teacherProfile')) || {};
++  tp.note = note;
++  if (lastTopic) tp.lastTopic = lastTopic;
++  tp.updatedAt = Date.now();
++  await setSetting('teacherProfile', tp);
++}
++
++export async function recordLesson(entry) {
++  const history = (await getSetting('lessonHistory')) || [];
++  history.push(entry);
++  await setSetting('lessonHistory', history);
++}
++
++export async function getLessonHistory() {
++  return (await getSetting('lessonHistory')) || [];
++}
+diff --git a/js/prompts.js b/js/prompts.js
+index d2ba8de..331cbce 100644
+--- a/js/prompts.js
++++ b/js/prompts.js
+@@ -56,10 +56,32 @@ export const SPEECH_COACH_SYSTEM = `Ты — логопед-преподават
+ 
+ export const DAILY_WORDS_SYSTEM = `Ты подбираешь ежедневную порцию из 5 новых полезных РАЗГОВОРНЫХ слов или коротких выражений на испанском для русскоязычного ученика уровня A2–B1, живущего рядом с Бенидормом (Валенсийское сообщество).
+ Слова должны быть практичными для повседневного общения здесь и сейчас: магазин, бар, соседи, услуги, улица, транспорт. Не повторяй слова, которые ученик уже знает.
+ Верни СТРОГО один JSON-объект, без markdown и без пояснений:
+ {
+   "words": [
+     { "es": "слово/выражение на испанском", "ru": "перевод на русский", "example": "короткое предложение-пример на испанском", "exampleRu": "перевод примера на русский", "local": "как используют в районе Бенидорма/Валенсии или местный нюанс, по-русски; если нет — пустая строка" }
+   ]
+ }
+ Ровно 5 элементов в массиве "words". Только валидный JSON.`;
++
++export const LESSON_GEN_SYSTEM = `Ты — персональный преподаватель испанского для русскоязычного ученика. Тебе дают профиль ученика (уровень, выучено слов, слабые темы, заметка о прогрессе) и тему урока. Составь короткий адаптивный урок по этой теме под уровень ученика.
++Верни СТРОГО один JSON-объект, без markdown:
++{
++  "topic": "тема урока по-русски",
++  "explanation": "объяснение правила по-русски, с 2-3 примерами на испанском",
++  "exercises": [
++    { "type": "choice", "prompt": "предложение с пропуском или вопрос", "options": ["вариант 1", "вариант 2", "вариант 3"], "answer": 0 },
++    { "type": "open", "prompt": "задание со свободным ответом (например: переведи на испанский: ...)", "expected": "эталонный ответ на испанском" }
++  ]
++}
++Сделай 3-5 упражнений, смесь типов "choice" и "open". Для "choice" поле "answer" — индекс правильного варианта (0,1,2). Только валидный JSON.`;
++
++export const LESSON_REVIEW_SYSTEM = `Ты проверяешь выполнение урока испанского русскоязычным учеником A2–B1. Тебе дают тему, упражнения с эталонными ответами и ответы ученика (по порядку).
++Оцени каждое упражнение и верни СТРОГО один JSON-объект, без markdown:
++{
++  "results": [ { "correct": true, "comment": "короткий разбор по-русски" } ],
++  "summary": "итог урока и что подтянуть, по-русски",
++  "nextTopic": "рекомендуемая следующая тема по-русски",
++  "profileNote": "обновлённая краткая заметка о текущем уровне и слабых местах ученика, 1-2 предложения по-русски"
++}
++Массив "results" — по числу упражнений в том же порядке. Только валидный JSON.`;
+diff --git a/js/teacher.js b/js/teacher.js
+new file mode 100644
+index 0000000..30fb624
+--- /dev/null
++++ b/js/teacher.js
+@@ -0,0 +1,111 @@
++import { registerFeature } from './app.js';
++import { buildProfile, saveProfileNote, recordLesson, pickNextTopic } from './profile.js';
++import { generateLesson, reviewLesson } from './claude.js';
++import { escapeHtml } from './util.js';
++
++let lesson = null;
++
++function exerciseHtml(ex, i) {
++  const e = escapeHtml;
++  if (ex.type === 'choice') {
++    const opts = (ex.options || []).map((o, j) =>
++      `<label class="opt-row"><input type="radio" name="ex${i}" value="${j}"> ${e(o)}</label>`).join('');
++    return `<div class="lesson-ex"><div class="ex-prompt">${i + 1}. ${e(ex.prompt)}</div>${opts}</div>`;
++  }
++  return `<div class="lesson-ex"><div class="ex-prompt">${i + 1}. ${e(ex.prompt)}</div><textarea data-open="${i}" rows="2" placeholder="Твой ответ…"></textarea></div>`;
++}
++
++function collectAnswers(container) {
++  return lesson.exercises.map((ex, i) => {
++    if (ex.type === 'choice') {
++      const sel = container.querySelector(`input[name="ex${i}"]:checked`);
++      return sel ? ((ex.options || [])[Number(sel.value)] || '') : '';
++    }
++    const ta = container.querySelector(`[data-open="${i}"]`);
++    return ta ? ta.value.trim() : '';
++  });
++}
++
++function renderLesson(container) {
++  const e = escapeHtml;
++  container.innerHTML = `
++    <h1>Урок: ${e(lesson.topic)}</h1>
++    <div class="study-card"><div class="word-ex">${e(lesson.explanation)}</div></div>
++    <div id="tch-ex">${(lesson.exercises || []).map((ex, i) => exerciseHtml(ex, i)).join('')}</div>
++    <button id="tch-check">Проверить ответы</button>
++    <p id="tch-status" class="status"></p>
++    <div id="tch-results"></div>
++  `;
++  container.querySelector('#tch-check').onclick = () => checkLesson(container);
++}
++
++async function checkLesson(container) {
++  const status = container.querySelector('#tch-status');
++  const answers = collectAnswers(container);
++  status.textContent = 'Проверяю…';
++  try {
++    const r = await reviewLesson(lesson, answers);
++    if (!container.querySelector('#tch-results')) return;
++    status.textContent = '';
++    const e = escapeHtml;
++    const results = (r.results || []).map((res, i) =>
++      `<div class="lesson-ex"><div class="${res.correct ? 'gr-ok' : 'gr-bad'}">${res.correct ? '✅' : '❌'} ${i + 1}</div><div class="word-ex">${e(res.comment || '')}</div></div>`).join('');
++    const total = (r.results || []).length;
++    const correct = (r.results || []).filter((x) => x.correct).length;
++    container.querySelector('#tch-results').innerHTML = `
++      ${results}
++      <div class="study-card"><b>Итог: ${correct}/${total}</b>
++        <div class="word-ex">${e(r.summary || '')}</div>
++        ${r.nextTopic ? `<div class="word-local">▶︎ Следующая тема: ${e(r.nextTopic)}</div>` : ''}
++      </div>
++      <button id="tch-again">К началу</button>
++    `;
++    await saveProfileNote(r.profileNote || '', lesson.topic);
++    await recordLesson({ topic: lesson.topic, date: Date.now(), score: `${correct}/${total}` });
++    const again = container.querySelector('#tch-again');
++    if (again) again.onclick = () => render(container);
++  } catch (err) {
++    const s = container.querySelector('#tch-status');
++    if (s) s.textContent = err.message;
++  }
++}
++
++async function startLesson(container, topic) {
++  const status = container.querySelector('#tch-status');
++  status.textContent = 'Готовлю урок под твой уровень…';
++  try {
++    const profile = await buildProfile();
++    lesson = await generateLesson(profile, topic);
++    if (!container.querySelector('#tch-status')) return;
++    renderLesson(container);
++  } catch (err) {
++    const s = container.querySelector('#tch-status');
++    if (s) s.textContent = err.message;
++  }
++}
++
++async function render(container) {
++  container.innerHTML = '<h1>Учитель</h1><p class="status">Анализирую твой уровень…</p>';
++  const profile = await buildProfile();
++  if (!container.isConnected) return;
++  const e = escapeHtml;
++  const recommended = pickNextTopic(profile.weak, profile.lastTopic);
++  container.innerHTML = `
++    <h1>Учитель</h1>
++    <div class="study-card">
++      <div class="word-ex">Уровень: <b>${e(profile.level)}</b> · выучено слов: <b>${profile.learned}</b> · уроков пройдено: <b>${profile.lessonsCompleted}</b></div>
++      ${profile.note ? `<div class="word-local">📝 ${e(profile.note)}</div>` : ''}
++    </div>
++    <label>Тема следующего урока (рекомендована по твоим слабым местам)
++      <input id="tch-topic" type="text" value="${e(recommended)}">
++    </label>
++    <button id="tch-start">Начать урок</button>
++    <p id="tch-status" class="status"></p>
++  `;
++  container.querySelector('#tch-start').onclick = () => {
++    const topic = container.querySelector('#tch-topic').value.trim() || recommended;
++    startLesson(container, topic);
++  };
++}
++
++registerFeature({ id: 'teacher', title: 'Учитель', icon: '👨‍🏫', order: 5, render });
+diff --git a/sw.js b/sw.js
+index f154226..e65ae2f 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,21 +1,22 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v5';
++const CACHE = 'espanol-v6';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
+   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
+   './js/listening.js', './js/grammar.js',
+   './js/stats.js', './js/asr.js', './js/speech.js', './js/progress.js',
+   './js/daily.js',
++  './js/profile.js', './js/teacher.js',
+   './icons/icon-192.png', './icons/icon-512.png',
+ ];
+ 
+ self.addEventListener('install', (e) => {
+   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+ });
+ 
+ self.addEventListener('activate', (e) => {
+   e.waitUntil(
+     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+diff --git a/test/profile.test.js b/test/profile.test.js
+new file mode 100644
+index 0000000..9f645fb
+--- /dev/null
++++ b/test/profile.test.js
+@@ -0,0 +1,22 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { pickNextTopic } from '../js/profile.js';
++
++test('pickNextTopic: пусто → общая практика', () => {
++  assert.equal(pickNextTopic([], ''), 'Общая практика грамматики');
++});
++
++test('pickNextTopic: самая частая слабая тема', () => {
++  const weak = [{ topic: 'согласование рода', count: 3 }, { topic: 'спряжение', count: 1 }];
++  assert.equal(pickNextTopic(weak, ''), 'согласование рода');
++});
++
++test('pickNextTopic: пропускает только что пройденную тему', () => {
++  const weak = [{ topic: 'согласование рода', count: 3 }, { topic: 'спряжение', count: 1 }];
++  assert.equal(pickNextTopic(weak, 'согласование рода'), 'спряжение');
++});
++
++test('pickNextTopic: единственная тема = последняя → всё равно возвращается', () => {
++  const weak = [{ topic: 'спряжение', count: 2 }];
++  assert.equal(pickNextTopic(weak, 'спряжение'), 'спряжение');
++});
