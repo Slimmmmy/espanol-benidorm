@@ -1,0 +1,471 @@
+# Review package: plan-1-foundation (497160c..HEAD)
+
+## Commits
+25c5999 chore: dev server and test scripts; manual verification
+656c201 feat: PWA shell, manifest, service worker, base styles
+ba89d2b feat: settings screen (api key, model, level, connection test)
+8a95991 feat: feature registry and hash router
+53e285a feat: Claude API client with connection test
+6d2865d feat: base dialect system prompt
+a3b596a feat: IndexedDB data layer (settings, words, export/import)
+669bae6 feat: language detection util with tests
+
+## Stat
+ .gitignore           |   2 ++
+ css/styles.css       |  16 +++++++++++
+ icons/icon-192.png   | Bin 0 -> 69 bytes
+ icons/icon-512.png   | Bin 0 -> 69 bytes
+ index.html           |  27 +++++++++++++++++++
+ js/app.js            |  38 ++++++++++++++++++++++++++
+ js/claude.js         |  57 +++++++++++++++++++++++++++++++++++++++
+ js/db.js             |  74 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ js/lang.js           |   7 +++++
+ js/prompts.js        |   7 +++++
+ js/settings.js       |  52 ++++++++++++++++++++++++++++++++++++
+ manifest.webmanifest |  15 +++++++++++
+ package.json         |   9 +++++++
+ sw.js                |  28 +++++++++++++++++++
+ test/lang.test.js    |  22 +++++++++++++++
+ 15 files changed, 354 insertions(+)
+
+## Full diff
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..2752eb9
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,2 @@
++node_modules/
++.DS_Store
+diff --git a/css/styles.css b/css/styles.css
+new file mode 100644
+index 0000000..732d1e6
+--- /dev/null
++++ b/css/styles.css
+@@ -0,0 +1,16 @@
++:root { --bg:#0f172a; --card:#1e293b; --fg:#e2e8f0; --accent:#22c55e; --muted:#94a3b8; }
++* { box-sizing: border-box; }
++body { margin:0; font-family:-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--fg); }
++#screen { padding:16px 16px 88px; max-width:680px; margin:0 auto; }
++h1 { font-size:22px; margin:8px 0 16px; }
++label { display:block; margin:12px 0; color:var(--muted); font-size:14px; }
++input, select { width:100%; padding:12px; margin-top:6px; border-radius:10px; border:1px solid #334155;
++  background:var(--card); color:var(--fg); font-size:16px; }
++button { margin:8px 8px 0 0; padding:12px 16px; border:none; border-radius:10px;
++  background:var(--accent); color:#06210f; font-size:16px; font-weight:600; }
++.status { margin-top:12px; color:var(--muted); }
++#nav { position:fixed; bottom:0; left:0; right:0; display:flex; justify-content:space-around;
++  background:var(--card); border-top:1px solid #334155; padding:6px 0; }
++.nav-btn { flex:1; text-align:center; text-decoration:none; color:var(--muted); font-size:11px; padding:4px; }
++.nav-btn.active { color:var(--accent); }
++.nav-icon { display:block; font-size:20px; }
+diff --git a/icons/icon-192.png b/icons/icon-192.png
+new file mode 100644
+index 0000000..875245d
+Binary files /dev/null and b/icons/icon-192.png differ
+diff --git a/icons/icon-512.png b/icons/icon-512.png
+new file mode 100644
+index 0000000..875245d
+Binary files /dev/null and b/icons/icon-512.png differ
+diff --git a/index.html b/index.html
+new file mode 100644
+index 0000000..edfcb35
+--- /dev/null
++++ b/index.html
+@@ -0,0 +1,27 @@
++<!doctype html>
++<html lang="ru">
++<head>
++  <meta charset="utf-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
++  <meta name="apple-mobile-web-app-capable" content="yes">
++  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
++  <meta name="apple-mobile-web-app-title" content="Español">
++  <meta name="theme-color" content="#0f172a">
++  <link rel="manifest" href="manifest.webmanifest">
++  <link rel="apple-touch-icon" href="icons/icon-192.png">
++  <link rel="stylesheet" href="css/styles.css">
++  <title>Español Benidorm</title>
++</head>
++<body>
++  <main id="screen"></main>
++  <nav id="nav"></nav>
++  <script type="module">
++    import { startApp } from './js/app.js';
++    import './js/settings.js';
++    startApp();
++    if ('serviceWorker' in navigator) {
++      navigator.serviceWorker.register('sw.js').catch(() => {});
++    }
++  </script>
++</body>
++</html>
+diff --git a/js/app.js b/js/app.js
+new file mode 100644
+index 0000000..113f6c6
+--- /dev/null
++++ b/js/app.js
+@@ -0,0 +1,38 @@
++// Реестр экранов + hash-роутер. Новые блоки регистрируются, ядро не меняется (§9).
++const features = [];
++
++export function registerFeature(feature) {
++  features.push(feature);
++}
++
++function sorted() {
++  return [...features].sort((a, b) => a.order - b.order);
++}
++
++function renderNav(activeId) {
++  const nav = document.getElementById('nav');
++  nav.innerHTML = '';
++  for (const f of sorted()) {
++    const btn = document.createElement('a');
++    btn.className = 'nav-btn' + (f.id === activeId ? ' active' : '');
++    btn.href = `#${f.id}`;
++    btn.innerHTML = `<span class="nav-icon">${f.icon}</span><span class="nav-label">${f.title}</span>`;
++    nav.appendChild(btn);
++  }
++}
++
++async function renderRoute() {
++  const list = sorted();
++  if (list.length === 0) return;
++  const id = location.hash.slice(1) || list[0].id;
++  const feature = list.find((f) => f.id === id) || list[0];
++  renderNav(feature.id);
++  const screen = document.getElementById('screen');
++  screen.innerHTML = '';
++  await feature.render(screen);
++}
++
++export function startApp() {
++  window.addEventListener('hashchange', renderRoute);
++  renderRoute();
++}
+diff --git a/js/claude.js b/js/claude.js
+new file mode 100644
+index 0000000..2baf78a
+--- /dev/null
++++ b/js/claude.js
+@@ -0,0 +1,57 @@
++import { getSetting } from './db.js';
++
++export const DEFAULT_MODEL = 'claude-haiku-4-5';
++const API_URL = 'https://api.anthropic.com/v1/messages';
++
++export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
++  const apiKey = await getSetting('apiKey');
++  if (!apiKey) {
++    throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
++  }
++  const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
++
++  let res;
++  try {
++    res = await fetch(API_URL, {
++      method: 'POST',
++      headers: {
++        'content-type': 'application/json',
++        'x-api-key': apiKey,
++        'anthropic-version': '2023-06-01',
++        'anthropic-dangerous-direct-browser-access': 'true',
++      },
++      body: JSON.stringify({
++        model: chosenModel,
++        max_tokens: maxTokens,
++        system,
++        messages,
++      }),
++    });
++  } catch (e) {
++    throw new Error('Нет сети. AI-функции недоступны офлайн.');
++  }
++
++  if (!res.ok) {
++    let detail = '';
++    try { detail = (await res.json()).error?.message || ''; } catch {}
++    if (res.status === 401) throw new Error('Неверный API-ключ. Проверьте Настройки.');
++    if (res.status === 429) throw new Error('Превышен лимит запросов. Попробуйте позже.');
++    throw new Error(`Ошибка API (${res.status}). ${detail}`);
++  }
++
++  const data = await res.json();
++  const block = (data.content || []).find((b) => b.type === 'text');
++  return block ? block.text : '';
++}
++
++export async function testConnection() {
++  try {
++    const text = await callClaude({
++      messages: [{ role: 'user', content: 'Responde solo con la palabra: OK' }],
++      maxTokens: 16,
++    });
++    return { ok: true, message: `Связь есть. Ответ: ${text.trim()}` };
++  } catch (e) {
++    return { ok: false, message: e.message };
++  }
++}
+diff --git a/js/db.js b/js/db.js
+new file mode 100644
+index 0000000..28dc858
+--- /dev/null
++++ b/js/db.js
+@@ -0,0 +1,74 @@
++// Обёртка IndexedDB с версионированной схемой и миграциями.
++const DB_NAME = 'espanol';
++const DB_VERSION = 1;
++
++let dbPromise = null;
++
++export function openDB() {
++  if (dbPromise) return dbPromise;
++  dbPromise = new Promise((resolve, reject) => {
++    const req = indexedDB.open(DB_NAME, DB_VERSION);
++    req.onupgradeneeded = (e) => {
++      const db = req.result;
++      // Миграции по возрастанию версии. Новые версии добавляют свои блоки.
++      if (e.oldVersion < 1) {
++        db.createObjectStore('settings', { keyPath: 'key' });
++        db.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
++      }
++    };
++    req.onsuccess = () => resolve(req.result);
++    req.onerror = () => reject(req.error);
++  });
++  return dbPromise;
++}
++
++function tx(db, store, mode) {
++  return db.transaction(store, mode).objectStore(store);
++}
++
++function asPromise(request) {
++  return new Promise((resolve, reject) => {
++    request.onsuccess = () => resolve(request.result);
++    request.onerror = () => reject(request.error);
++  });
++}
++
++export async function getSetting(key) {
++  const db = await openDB();
++  const row = await asPromise(tx(db, 'settings', 'readonly').get(key));
++  return row ? row.value : undefined;
++}
++
++export async function setSetting(key, value) {
++  const db = await openDB();
++  await asPromise(tx(db, 'settings', 'readwrite').put({ key, value }));
++}
++
++export async function putWord(word) {
++  const db = await openDB();
++  return asPromise(tx(db, 'words', 'readwrite').put(word));
++}
++
++export async function getAllWords() {
++  const db = await openDB();
++  return asPromise(tx(db, 'words', 'readonly').getAll());
++}
++
++export async function exportAll() {
++  const db = await openDB();
++  const words = await asPromise(tx(db, 'words', 'readonly').getAll());
++  const settingsRows = await asPromise(tx(db, 'settings', 'readonly').getAll());
++  const settings = {};
++  for (const row of settingsRows) settings[row.key] = row.value;
++  return { settings, words };
++}
++
++export async function importAll(data) {
++  const db = await openDB();
++  for (const [key, value] of Object.entries(data.settings || {})) {
++    await asPromise(tx(db, 'settings', 'readwrite').put({ key, value }));
++  }
++  for (const word of data.words || []) {
++    await asPromise(tx(db, 'words', 'readwrite').put(word));
++  }
++}
+diff --git a/js/lang.js b/js/lang.js
+new file mode 100644
+index 0000000..506afd7
+--- /dev/null
++++ b/js/lang.js
+@@ -0,0 +1,7 @@
++// Определение языка ввода по наличию кириллицы.
++const CYRILLIC = /[Ѐ-ӿ]/;
++
++export function detectLang(text) {
++  if (text && CYRILLIC.test(text)) return 'ru';
++  return 'es';
++}
+diff --git a/js/prompts.js b/js/prompts.js
+new file mode 100644
+index 0000000..b4364fb
+--- /dev/null
++++ b/js/prompts.js
+@@ -0,0 +1,7 @@
++// Системные промпты. Новые AI-сценарии добавляют свои строки здесь (§9).
++export const DIALECT_SYSTEM = `Ты — преподаватель испанского для русскоязычного ученика уровня A2–B1.
++Ученик живёт в Валенсийском сообществе рядом с Бенидормом (провинция Аликанте).
++База — стандартный кастильский испанский, но всегда подсвечивай местные
++валенсийские/аликантийские словечки и выражения, которые реально используют в
++районе Бенидорма, и помечай отличия от стандарта. Объяснения давай по-русски,
++примеры — на испанском. Будь кратким и практичным.`;
+diff --git a/js/settings.js b/js/settings.js
+new file mode 100644
+index 0000000..5e7941c
+--- /dev/null
++++ b/js/settings.js
+@@ -0,0 +1,52 @@
++import { registerFeature } from './app.js';
++import { getSetting, setSetting } from './db.js';
++import { testConnection, DEFAULT_MODEL } from './claude.js';
++
++async function render(container) {
++  const apiKey = (await getSetting('apiKey')) || '';
++  const model = (await getSetting('model')) || DEFAULT_MODEL;
++  const level = (await getSetting('level')) || 'A2-B1';
++
++  container.innerHTML = `
++    <h1>Настройки</h1>
++    <label>API-ключ Claude
++      <input id="set-key" type="password" placeholder="sk-ant-..." value="${apiKey}">
++    </label>
++    <label>Модель
++      <select id="set-model">
++        <option value="claude-haiku-4-5">claude-haiku-4-5 (быстрая, дешёвая)</option>
++        <option value="claude-sonnet-4-6">claude-sonnet-4-6 (для диалогов)</option>
++      </select>
++    </label>
++    <label>Уровень
++      <select id="set-level">
++        <option value="A0-A1">A0–A1</option>
++        <option value="A2-B1">A2–B1</option>
++        <option value="B2+">B2+</option>
++      </select>
++    </label>
++    <button id="set-save">Сохранить</button>
++    <button id="set-test">Проверить связь</button>
++    <p id="set-status" class="status"></p>
++  `;
++  container.querySelector('#set-model').value = model;
++  container.querySelector('#set-level').value = level;
++
++  const status = container.querySelector('#set-status');
++
++  container.querySelector('#set-save').onclick = async () => {
++    await setSetting('apiKey', container.querySelector('#set-key').value.trim());
++    await setSetting('model', container.querySelector('#set-model').value);
++    await setSetting('level', container.querySelector('#set-level').value);
++    status.textContent = 'Сохранено.';
++  };
++
++  container.querySelector('#set-test').onclick = async () => {
++    status.textContent = 'Проверяю…';
++    await setSetting('apiKey', container.querySelector('#set-key').value.trim());
++    const result = await testConnection();
++    status.textContent = result.message;
++  };
++}
++
++registerFeature({ id: 'settings', title: 'Настройки', icon: '⚙️', order: 90, render });
+diff --git a/manifest.webmanifest b/manifest.webmanifest
+new file mode 100644
+index 0000000..7a58a89
+--- /dev/null
++++ b/manifest.webmanifest
+@@ -0,0 +1,15 @@
++{
++  "name": "Español Benidorm",
++  "short_name": "Español",
++  "start_url": "./",
++  "scope": "./",
++  "display": "standalone",
++  "background_color": "#0f172a",
++  "theme_color": "#0f172a",
++  "lang": "ru",
++  "icons": [
++    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
++    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
++    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
++  ]
++}
+diff --git a/package.json b/package.json
+new file mode 100644
+index 0000000..9c8c11b
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,9 @@
++{
++  "name": "espanol-benidorm",
++  "version": "0.1.0",
++  "type": "module",
++  "scripts": {
++    "start": "npx --yes serve -l 3000 .",
++    "test": "node --test"
++  }
++}
+diff --git a/sw.js b/sw.js
+new file mode 100644
+index 0000000..be3916c
+--- /dev/null
++++ b/sw.js
+@@ -0,0 +1,28 @@
++// Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
++const CACHE = 'espanol-v1';
++const SHELL = [
++  './', './index.html', './manifest.webmanifest', './css/styles.css',
++  './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
++  './js/lang.js', './js/settings.js',
++  './icons/icon-192.png', './icons/icon-512.png',
++];
++
++self.addEventListener('install', (e) => {
++  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
++});
++
++self.addEventListener('activate', (e) => {
++  e.waitUntil(
++    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
++      .then(() => self.clients.claim())
++  );
++});
++
++self.addEventListener('fetch', (e) => {
++  const url = new URL(e.request.url);
++  // К API всегда сеть, его не кэшируем.
++  if (url.hostname.endsWith('anthropic.com')) return;
++  e.respondWith(
++    caches.match(e.request).then((cached) => cached || fetch(e.request))
++  );
++});
+diff --git a/test/lang.test.js b/test/lang.test.js
+new file mode 100644
+index 0000000..b880099
+--- /dev/null
++++ b/test/lang.test.js
+@@ -0,0 +1,22 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { detectLang } from '../js/lang.js';
++
++test('кириллица → ru', () => {
++  assert.equal(detectLang('привет'), 'ru');
++  assert.equal(detectLang('дом большой'), 'ru');
++});
++
++test('латиница → es', () => {
++  assert.equal(detectLang('hola'), 'es');
++  assert.equal(detectLang('la casa'), 'es');
++});
++
++test('смешанное с кириллицей → ru', () => {
++  assert.equal(detectLang('casa дом'), 'ru');
++});
++
++test('пустая строка → es', () => {
++  assert.equal(detectLang(''), 'es');
++  assert.equal(detectLang('   '), 'es');
++});
