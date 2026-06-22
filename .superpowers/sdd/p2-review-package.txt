@@ -1,0 +1,527 @@
+# Review package: plan-2-dictionary-srs (d647a7f..HEAD)
+
+## Commits
+14c1f7a feat: wire dictionary and study screens, cache v2, card styles
+cb590ff feat: study screen with spaced-repetition queue
+6c51e47 feat: dictionary screen (bidirectional lookup, autofill, save, list, TTS)
+e6ff7be feat: Spanish text-to-speech helper
+3ed8ef6 feat: enrichWord AI dictionary lookup with local-dialect prompt
+428252f feat: add getWord and deleteWord to data layer
+198e201 feat: SRS scheduling engine with tests
+aa4d222 feat: escapeHtml and extractJson utils with tests
+
+## Stat
+ css/styles.css    | 12 +++++++++
+ index.html        |  2 ++
+ js/claude.js      | 11 ++++++++
+ js/db.js          | 10 +++++++
+ js/dictionary.js  | 81 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ js/prompts.js     | 14 ++++++++++
+ js/srs.js         | 32 ++++++++++++++++++++++
+ js/study.js       | 56 ++++++++++++++++++++++++++++++++++++++
+ js/tts.js         | 11 ++++++++
+ js/util.js        | 24 +++++++++++++++++
+ sw.js             |  3 ++-
+ test/srs.test.js  | 58 +++++++++++++++++++++++++++++++++++++++
+ test/util.test.js | 29 ++++++++++++++++++++
+ 13 files changed, 342 insertions(+), 1 deletion(-)
+
+## Full diff
+diff --git a/css/styles.css b/css/styles.css
+index 39fa633..17abb96 100644
+--- a/css/styles.css
++++ b/css/styles.css
+@@ -7,10 +7,22 @@ label { display:block; margin:12px 0; color:var(--muted); font-size:14px; }
+ input, select { width:100%; padding:12px; margin-top:6px; border-radius:10px; border:1px solid #334155;
+   background:var(--card); color:var(--fg); font-size:16px; }
+ button { margin:8px 8px 0 0; padding:12px 16px; border:none; border-radius:10px;
+   background:var(--accent); color:#06210f; font-size:16px; font-weight:600; cursor: pointer; }
+ .status { margin-top:12px; color:var(--muted); }
+ #nav { position:fixed; bottom:0; left:0; right:0; display:flex; justify-content:space-around;
+   background:var(--card); border-top:1px solid #334155; padding:6px 0; }
+ .nav-btn { flex:1; text-align:center; text-decoration:none; color:var(--muted); font-size:11px; padding:4px; }
+ .nav-btn.active { color:var(--accent); }
+ .nav-icon { display:block; font-size:20px; }
++h2 { font-size:18px; margin:24px 0 8px; }
++.hidden { display:none; }
++.muted { color:var(--muted); font-weight:400; }
++.word-card, .study-card { background:var(--card); border:1px solid #334155; border-radius:12px; padding:14px; margin:10px 0; }
++.word-main { font-size:17px; line-height:1.4; }
++.word-ex { margin-top:6px; color:#cbd5e1; font-style:italic; }
++.word-local { margin-top:6px; color:#fbbf24; font-size:14px; }
++.word-actions, .grade-row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
++button.danger { background:#ef4444; color:#fff; }
++.study-front, .study-es { font-size:22px; text-align:center; margin:12px 0; }
++.grade-row { margin-top:14px; }
++.grade-row button { flex:1; }
+diff --git a/index.html b/index.html
+index edfcb35..f12835e 100644
+--- a/index.html
++++ b/index.html
+@@ -10,18 +10,20 @@
+   <link rel="manifest" href="manifest.webmanifest">
+   <link rel="apple-touch-icon" href="icons/icon-192.png">
+   <link rel="stylesheet" href="css/styles.css">
+   <title>Español Benidorm</title>
+ </head>
+ <body>
+   <main id="screen"></main>
+   <nav id="nav"></nav>
+   <script type="module">
+     import { startApp } from './js/app.js';
++    import './js/study.js';
++    import './js/dictionary.js';
+     import './js/settings.js';
+     startApp();
+     if ('serviceWorker' in navigator) {
+       navigator.serviceWorker.register('sw.js').catch(() => {});
+     }
+   </script>
+ </body>
+ </html>
+diff --git a/js/claude.js b/js/claude.js
+index 2baf78a..a6c2f5b 100644
+--- a/js/claude.js
++++ b/js/claude.js
+@@ -1,11 +1,13 @@
+ import { getSetting } from './db.js';
++import { extractJson } from './util.js';
++import { WORD_ENRICH_SYSTEM } from './prompts.js';
+ 
+ export const DEFAULT_MODEL = 'claude-haiku-4-5';
+ const API_URL = 'https://api.anthropic.com/v1/messages';
+ 
+ export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
+   const apiKey = await getSetting('apiKey');
+   if (!apiKey) {
+     throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
+   }
+   const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
+@@ -48,10 +50,19 @@ export async function testConnection() {
+   try {
+     const text = await callClaude({
+       messages: [{ role: 'user', content: 'Responde solo con la palabra: OK' }],
+       maxTokens: 16,
+     });
+     return { ok: true, message: `Связь есть. Ответ: ${text.trim()}` };
+   } catch (e) {
+     return { ok: false, message: e.message };
+   }
+ }
++
++export async function enrichWord(input) {
++  const text = await callClaude({
++    system: WORD_ENRICH_SYSTEM,
++    messages: [{ role: 'user', content: input }],
++    maxTokens: 400,
++  });
++  return extractJson(text);
++}
+diff --git a/js/db.js b/js/db.js
+index 28dc858..f8e16ac 100644
+--- a/js/db.js
++++ b/js/db.js
+@@ -65,10 +65,20 @@ export async function exportAll() {
+ 
+ export async function importAll(data) {
+   const db = await openDB();
+   for (const [key, value] of Object.entries(data.settings || {})) {
+     await asPromise(tx(db, 'settings', 'readwrite').put({ key, value }));
+   }
+   for (const word of data.words || []) {
+     await asPromise(tx(db, 'words', 'readwrite').put(word));
+   }
+ }
++
++export async function getWord(id) {
++  const db = await openDB();
++  return asPromise(tx(db, 'words', 'readonly').get(id));
++}
++
++export async function deleteWord(id) {
++  const db = await openDB();
++  await asPromise(tx(db, 'words', 'readwrite').delete(id));
++}
+diff --git a/js/dictionary.js b/js/dictionary.js
+new file mode 100644
+index 0000000..e55b954
+--- /dev/null
++++ b/js/dictionary.js
+@@ -0,0 +1,81 @@
++import { registerFeature } from './app.js';
++import { detectLang } from './lang.js';
++import { enrichWord } from './claude.js';
++import { putWord, getAllWords, deleteWord } from './db.js';
++import { newCard } from './srs.js';
++import { speak } from './tts.js';
++import { escapeHtml } from './util.js';
++
++function wordHtml(w, withSave) {
++  const e = escapeHtml;
++  return `
++    <div class="word-card">
++      <div class="word-main"><b>${e(w.es)}</b> ${w.gender ? `<span class="muted">(${e(w.gender)})</span>` : ''} — ${e(w.ru)}</div>
++      ${w.example ? `<div class="word-ex">${e(w.example)}${w.exampleRu ? `<br><span class="muted">${e(w.exampleRu)}</span>` : ''}</div>` : ''}
++      ${w.local ? `<div class="word-local">📍 ${e(w.local)}</div>` : ''}
++      <div class="word-actions">
++        ${withSave ? '<button id="dic-save">Сохранить в словарь</button>' : `<button class="danger" data-del="${e(w.id)}">Удалить</button>`}
++        <button ${withSave ? 'id="dic-say"' : `data-say="${e(w.id)}"`}>🔊</button>
++      </div>
++    </div>`;
++}
++
++async function renderList(container) {
++  const listEl = container.querySelector('#dic-list');
++  const words = (await getAllWords()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
++  if (words.length === 0) {
++    listEl.innerHTML = '<p class="status">Словарь пуст. Добавь первое слово выше.</p>';
++    return;
++  }
++  listEl.innerHTML = words.map((w) => wordHtml(w, false)).join('');
++  listEl.querySelectorAll('[data-say]').forEach((b) => {
++    b.onclick = () => { const w = words.find((x) => String(x.id) === b.dataset.say); if (w) speak(w.es); };
++  });
++  listEl.querySelectorAll('[data-del]').forEach((b) => {
++    b.onclick = async () => { await deleteWord(Number(b.dataset.del)); renderList(container); };
++  });
++}
++
++async function render(container) {
++  container.innerHTML = `
++    <h1>Словарь</h1>
++    <label>Слово или фраза (RU или ES)
++      <input id="dic-input" type="text" placeholder="напр. собака или perro" autocapitalize="off">
++    </label>
++    <button id="dic-lookup">Найти и заполнить</button>
++    <p id="dic-status" class="status"></p>
++    <div id="dic-preview"></div>
++    <h2>Мои слова</h2>
++    <div id="dic-list"></div>
++  `;
++  const status = container.querySelector('#dic-status');
++  const preview = container.querySelector('#dic-preview');
++  const inputEl = container.querySelector('#dic-input');
++
++  container.querySelector('#dic-lookup').onclick = async () => {
++    const input = inputEl.value.trim();
++    if (!input) return;
++    status.textContent = `Запрашиваю (${detectLang(input) === 'ru' ? 'RU→ES' : 'ES→RU'})…`;
++    preview.innerHTML = '';
++    try {
++      const w = await enrichWord(input);
++      status.textContent = '';
++      preview.innerHTML = wordHtml(w, true);
++      preview.querySelector('#dic-say').onclick = () => speak(w.es);
++      preview.querySelector('#dic-save').onclick = async () => {
++        const now = Date.now();
++        await putWord({ ...w, createdAt: now, ...newCard(now) });
++        preview.innerHTML = '';
++        inputEl.value = '';
++        status.textContent = 'Сохранено в словарь.';
++        renderList(container);
++      };
++    } catch (e) {
++      status.textContent = e.message;
++    }
++  };
++
++  await renderList(container);
++}
++
++registerFeature({ id: 'dictionary', title: 'Словарь', icon: '📖', order: 20, render });
+diff --git a/js/prompts.js b/js/prompts.js
+index b4364fb..2ecbd31 100644
+--- a/js/prompts.js
++++ b/js/prompts.js
+@@ -1,7 +1,21 @@
+ // Системные промпты. Новые AI-сценарии добавляют свои строки здесь (§9).
+ export const DIALECT_SYSTEM = `Ты — преподаватель испанского для русскоязычного ученика уровня A2–B1.
+ Ученик живёт в Валенсийском сообществе рядом с Бенидормом (провинция Аликанте).
+ База — стандартный кастильский испанский, но всегда подсвечивай местные
+ валенсийские/аликантийские словечки и выражения, которые реально используют в
+ районе Бенидорма, и помечай отличия от стандарта. Объяснения давай по-русски,
+ примеры — на испанском. Будь кратким и практичным.`;
++
++export const WORD_ENRICH_SYSTEM = `Ты — двуязычный словарь (русский↔испанский) для ученика уровня A2–B1, живущего рядом с Бенидормом (Валенсийское сообщество, провинция Аликанте).
++Тебе дают слово или короткую фразу на русском или на испанском.
++Верни СТРОГО один JSON-объект, без markdown и без пояснений, с полями:
++{
++  "es": "слово/фраза на испанском (база — стандартный кастильский)",
++  "ru": "перевод на русский",
++  "example": "одно короткое предложение-пример на испанском",
++  "exampleRu": "перевод примера на русский",
++  "pos": "часть речи по-русски (например: существительное, глагол, прилагательное)",
++  "gender": "для существительного артикль el или la, иначе пустая строка",
++  "local": "как это слово/выражение используют именно в районе Бенидорма/Валенсии, или местный синоним; по-русски; если особенностей нет — пустая строка"
++}
++Только валидный JSON.`;
+diff --git a/js/srs.js b/js/srs.js
+new file mode 100644
+index 0000000..a84f94f
+--- /dev/null
++++ b/js/srs.js
+@@ -0,0 +1,32 @@
++// Интервальное повторение (SM-2-lite). Чистые функции, без побочных эффектов.
++export const DAY = 24 * 60 * 60 * 1000;
++const MIN_EASE = 1.3;
++
++export function newCard(now) {
++  return { due: now, interval: 0, ease: 2.5, reps: 0, lapses: 0 };
++}
++
++export function schedule(card, grade, now) {
++  const c = { ...card };
++  if (grade === 'again') {
++    c.reps = 0;
++    c.lapses = card.lapses + 1;
++    c.ease = Math.max(MIN_EASE, card.ease - 0.2);
++    c.interval = 0;
++    c.due = now + 10 * 60 * 1000;
++    return c;
++  }
++  c.reps = card.reps + 1;
++  if (grade === 'easy') c.ease = card.ease + 0.15;
++  let interval;
++  if (c.reps === 1) interval = grade === 'easy' ? 2 : 1;
++  else if (c.reps === 2) interval = grade === 'easy' ? 4 : 3;
++  else interval = Math.round(card.interval * c.ease * (grade === 'easy' ? 1.3 : 1));
++  c.interval = interval;
++  c.due = now + interval * DAY;
++  return c;
++}
++
++export function dueCards(cards, now) {
++  return cards.filter((c) => (c.due ?? 0) <= now);
++}
+diff --git a/js/study.js b/js/study.js
+new file mode 100644
+index 0000000..cb335db
+--- /dev/null
++++ b/js/study.js
+@@ -0,0 +1,56 @@
++import { registerFeature } from './app.js';
++import { getAllWords, putWord } from './db.js';
++import { dueCards, schedule } from './srs.js';
++import { speak } from './tts.js';
++import { escapeHtml } from './util.js';
++
++let queue = [];
++let current = null;
++
++function renderEmpty(container) {
++  container.innerHTML = `<h1>Учить</h1>
++    <p class="status">На сегодня всё повторено 🎉<br>Добавь слова во вкладке «Словарь» или вернись позже.</p>`;
++}
++
++async function grade(container, g) {
++  const updated = { ...current, ...schedule(current, g, Date.now()) };
++  await putWord(updated);
++  queue = queue.filter((w) => w.id !== current.id);
++  if (g === 'again') queue.push(updated); // вернуть в конец очереди на сегодня
++  renderCard(container);
++}
++
++function renderCard(container) {
++  if (queue.length === 0) { renderEmpty(container); return; }
++  current = queue[0];
++  const e = escapeHtml;
++  container.innerHTML = `
++    <h1>Учить <span class="muted">(осталось ${queue.length})</span></h1>
++    <div class="study-card">
++      <div class="study-front"><b>${e(current.ru)}</b></div>
++      <button id="study-reveal">Показать ответ</button>
++      <div id="study-back" class="hidden">
++        <div class="study-es"><b>${e(current.es)}</b> ${current.gender ? `<span class="muted">(${e(current.gender)})</span>` : ''}</div>
++        ${current.example ? `<div class="word-ex">${e(current.example)}</div>` : ''}
++        <button id="study-say">🔊 Озвучить</button>
++        <div class="grade-row">
++          <button class="danger" data-g="again">Не помню</button>
++          <button data-g="good">Помню</button>
++          <button data-g="easy">Легко</button>
++        </div>
++      </div>
++    </div>`;
++  container.querySelector('#study-reveal').onclick = () => {
++    container.querySelector('#study-back').classList.remove('hidden');
++    container.querySelector('#study-reveal').classList.add('hidden');
++  };
++  container.querySelector('#study-say').onclick = () => speak(current.es);
++  container.querySelectorAll('[data-g]').forEach((b) => { b.onclick = () => grade(container, b.dataset.g); });
++}
++
++async function render(container) {
++  queue = dueCards(await getAllWords(), Date.now());
++  renderCard(container);
++}
++
++registerFeature({ id: 'study', title: 'Учить', icon: '🎓', order: 10, render });
+diff --git a/js/tts.js b/js/tts.js
+new file mode 100644
+index 0000000..f58c7a0
+--- /dev/null
++++ b/js/tts.js
+@@ -0,0 +1,11 @@
++// Озвучка текста через Web Speech API (SpeechSynthesis).
++export function speak(text, lang = 'es-ES') {
++  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
++  const u = new SpeechSynthesisUtterance(text);
++  u.lang = lang;
++  const esVoice = speechSynthesis.getVoices().find((v) => v.lang && v.lang.startsWith('es'));
++  if (esVoice) u.voice = esVoice;
++  speechSynthesis.cancel();
++  speechSynthesis.speak(u);
++  return true;
++}
+diff --git a/js/util.js b/js/util.js
+new file mode 100644
+index 0000000..6d5a21d
+--- /dev/null
++++ b/js/util.js
+@@ -0,0 +1,24 @@
++// Чистые утилиты, используемые в нескольких экранах.
++
++export function escapeHtml(str) {
++  if (str === null || str === undefined) return '';
++  return String(str)
++    .replace(/&/g, '&amp;')
++    .replace(/</g, '&lt;')
++    .replace(/>/g, '&gt;')
++    .replace(/"/g, '&quot;')
++    .replace(/'/g, '&#39;');
++}
++
++export function extractJson(text) {
++  if (!text) throw new Error('Пустой ответ модели (нет JSON).');
++  let s = String(text).trim();
++  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
++  if (fence) s = fence[1].trim();
++  const start = s.indexOf('{');
++  const end = s.lastIndexOf('}');
++  if (start === -1 || end === -1 || end < start) {
++    throw new Error('В ответе модели не найден JSON.');
++  }
++  return JSON.parse(s.slice(start, end + 1));
++}
+diff --git a/sw.js b/sw.js
+index a4d3dec..6c887c2 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,17 +1,18 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v1';
++const CACHE = 'espanol-v2';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
++  './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
+   './icons/icon-192.png', './icons/icon-512.png',
+ ];
+ 
+ self.addEventListener('install', (e) => {
+   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+ });
+ 
+ self.addEventListener('activate', (e) => {
+   e.waitUntil(
+     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+diff --git a/test/srs.test.js b/test/srs.test.js
+new file mode 100644
+index 0000000..20f0503
+--- /dev/null
++++ b/test/srs.test.js
+@@ -0,0 +1,58 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { newCard, schedule, dueCards, DAY } from '../js/srs.js';
++
++const NOW = 1_000_000_000_000;
++
++test('newCard: стартовые значения', () => {
++  const c = newCard(NOW);
++  assert.deepEqual(c, { due: NOW, interval: 0, ease: 2.5, reps: 0, lapses: 0 });
++});
++
++test('schedule good: первый раз → интервал 1 день', () => {
++  const c = schedule(newCard(NOW), 'good', NOW);
++  assert.equal(c.reps, 1);
++  assert.equal(c.interval, 1);
++  assert.equal(c.due, NOW + DAY);
++});
++
++test('schedule good: второй раз → 3 дня', () => {
++  let c = schedule(newCard(NOW), 'good', NOW);
++  c = schedule(c, 'good', NOW);
++  assert.equal(c.reps, 2);
++  assert.equal(c.interval, 3);
++});
++
++test('schedule good: третий раз → round(3 * ease)', () => {
++  let c = schedule(newCard(NOW), 'good', NOW);
++  c = schedule(c, 'good', NOW);
++  c = schedule(c, 'good', NOW);
++  assert.equal(c.reps, 3);
++  assert.equal(c.interval, Math.round(3 * 2.5)); // 8
++});
++
++test('schedule again: сброс reps, +lapse, ease вниз, due через 10 минут', () => {
++  const c = schedule(newCard(NOW), 'again', NOW);
++  assert.equal(c.reps, 0);
++  assert.equal(c.lapses, 1);
++  assert.equal(c.ease, 2.3);
++  assert.equal(c.due, NOW + 10 * 60 * 1000);
++});
++
++test('schedule again: ease не опускается ниже 1.3', () => {
++  let c = newCard(NOW);
++  for (let i = 0; i < 20; i++) c = schedule(c, 'again', NOW);
++  assert.equal(c.ease, 1.3);
++});
++
++test('schedule не мутирует входную карточку', () => {
++  const c = newCard(NOW);
++  schedule(c, 'good', NOW);
++  assert.equal(c.reps, 0);
++});
++
++test('dueCards: только просроченные', () => {
++  const cards = [{ id: 1, due: NOW - 1 }, { id: 2, due: NOW + DAY }, { id: 3, due: NOW }];
++  const due = dueCards(cards, NOW).map((c) => c.id);
++  assert.deepEqual(due, [1, 3]);
++});
+diff --git a/test/util.test.js b/test/util.test.js
+new file mode 100644
+index 0000000..b30399d
+--- /dev/null
++++ b/test/util.test.js
+@@ -0,0 +1,29 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { escapeHtml, extractJson } from '../js/util.js';
++
++test('escapeHtml экранирует спецсимволы', () => {
++  assert.equal(escapeHtml('<b>"x"</b>'), '&lt;b&gt;&quot;x&quot;&lt;/b&gt;');
++  assert.equal(escapeHtml("a & b ' c"), 'a &amp; b &#39; c');
++});
++
++test('escapeHtml: null/undefined → пустая строка', () => {
++  assert.equal(escapeHtml(null), '');
++  assert.equal(escapeHtml(undefined), '');
++});
++
++test('extractJson: чистый JSON', () => {
++  assert.deepEqual(extractJson('{"es":"perro","ru":"собака"}'), { es: 'perro', ru: 'собака' });
++});
++
++test('extractJson: в ограждении ```json', () => {
++  assert.deepEqual(extractJson('```json\n{"a":1}\n```'), { a: 1 });
++});
++
++test('extractJson: с текстом вокруг', () => {
++  assert.deepEqual(extractJson('Вот ответ: {"a":1} спасибо'), { a: 1 });
++});
++
++test('extractJson: нет JSON → ошибка', () => {
++  assert.throws(() => extractJson('нет данных'), /JSON/);
++});
