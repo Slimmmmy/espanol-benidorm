@@ -1,6 +1,6 @@
 import { getSetting } from './db.js';
 import { extractJson } from './util.js';
-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM } from './prompts.js';
+import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM } from './prompts.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-4-5';
 const API_URL = 'https://api.anthropic.com/v1/messages';
@@ -100,6 +100,29 @@ export async function generateDailyWords(knownEs = []) {
     system: DAILY_WORDS_SYSTEM,
     messages: [{ role: 'user', content: `Слова, которые ученик уже знает (не повторяй их): ${known || '(пока пусто)'}` }],
     maxTokens: 800,
+  });
+  return extractJson(text);
+}
+
+export async function generateLesson(profile, topic) {
+  const text = await callClaude({
+    system: LESSON_GEN_SYSTEM,
+    messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\nТема урока: ${topic}` }],
+    maxTokens: 1200,
+  });
+  return extractJson(text);
+}
+
+export async function reviewLesson(lesson, answers) {
+  const items = (lesson.exercises || []).map((ex, i) => ({
+    prompt: ex.prompt,
+    expected: ex.type === 'choice' ? (ex.options || [])[ex.answer] : ex.expected,
+    answer: answers[i] || '',
+  }));
+  const text = await callClaude({
+    system: LESSON_REVIEW_SYSTEM,
+    messages: [{ role: 'user', content: `Тема: ${lesson.topic}\nУпражнения и ответы ученика: ${JSON.stringify(items)}` }],
+    maxTokens: 900,
   });
   return extractJson(text);
 }
