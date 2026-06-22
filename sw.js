@@ -1,5 +1,5 @@
 // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
-const CACHE = 'espanol-v4';
+const CACHE = 'espanol-v5';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './sw.js',
@@ -8,6 +8,7 @@ const SHELL = [
   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
   './js/listening.js', './js/grammar.js',
   './js/stats.js', './js/asr.js', './js/speech.js', './js/progress.js',
+  './js/daily.js',
   './icons/icon-192.png', './icons/icon-512.png',
 ];
 

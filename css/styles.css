@@ -43,3 +43,7 @@ button.ok { background:#22c55e; }
 .stat-num { font-size:30px; font-weight:700; color:var(--accent); }
 .stat-lbl { color:var(--muted); font-size:13px; margin-top:4px; }
 .sp-score { font-size:18px; font-weight:600; margin:10px 0; }
+.daily-progress { color:var(--accent); font-weight:700; font-size:16px; }
+.daily-added { color:var(--accent); align-self:center; font-size:14px; }
+.daily-apply { margin-top:10px; }
+.daily-feedback { margin-top:8px; }
