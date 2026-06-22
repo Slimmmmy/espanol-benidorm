@@ -47,3 +47,7 @@ button.ok { background:#22c55e; }
 .daily-added { color:var(--accent); align-self:center; font-size:14px; }
 .daily-apply { margin-top:10px; }
 .daily-feedback { margin-top:8px; }
+.lesson-ex { margin:14px 0; }
+.ex-prompt { font-weight:600; margin-bottom:6px; }
+.opt-row { display:block; margin:5px 0; color:var(--fg); font-weight:400; cursor:pointer; }
+.opt-row input { width:auto; margin-right:8px; }
