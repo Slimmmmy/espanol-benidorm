@@ -60,7 +60,8 @@ async function render(container) {
 
   function paint() {
     const added = set.words.filter((w) => w.added).length;
-    status.innerHTML = `<span class="daily-progress">Добавлено ${added}/5</span>`;
+    status.className = 'status daily-progress';
+    status.textContent = `Добавлено ${added}/5`;
     container.querySelector('#dly-list').innerHTML = set.words.map((w, i) => cardHtml(w, i)).join('');
     wire();
   }
@@ -74,13 +75,21 @@ async function render(container) {
       b.onclick = async () => {
         const i = Number(b.dataset.add);
         const w = set.words[i];
-        const now = Date.now();
-        await putWord({ es: w.es, ru: w.ru, example: w.example, exampleRu: w.exampleRu, local: w.local, createdAt: now, ...newCard(now) });
-        await recordStudyDay();
-        w.added = true;
-        await setSetting(todayKey(), set);
-        if (!container.querySelector('#dly-list')) return;
-        paint();
+        if (w.added) return;
+        b.disabled = true;
+        try {
+          const now = Date.now();
+          await putWord({ es: w.es, ru: w.ru, example: w.example, exampleRu: w.exampleRu, pos: '', gender: '', local: w.local, createdAt: now, ...newCard(now) });
+          await recordStudyDay();
+          w.added = true;
+          await setSetting(todayKey(), set);
+          if (!container.querySelector('#dly-list')) return;
+          paint();
+        } catch (err) {
+          b.disabled = false;
+          const s = container.querySelector('#dly-status');
+          if (s) s.textContent = err.message;
+        }
       };
     });
     list.querySelectorAll('[data-apply]').forEach((b) => {
@@ -102,8 +111,9 @@ async function render(container) {
           const box = list.querySelector(`[data-fb="${i}"]`);
           if (!box) return;
           const e = escapeHtml;
+          const isOk = !!r.ok;
           box.innerHTML = `
-            <div class="${r.ok ? 'gr-ok' : 'gr-bad'}">${r.ok ? '✅ Верно' : '✏️ Поправим'}</div>
+            <div class="${isOk ? 'gr-ok' : 'gr-bad'}">${isOk ? '✅ Верно' : '✏️ Поправим'}</div>
             ${r.corrected ? `<div class="word-ex"><b>${e(r.corrected)}</b></div>` : ''}
             ${r.explanation ? `<div class="word-ex">${e(r.explanation)}</div>` : ''}`;
         } catch (err) {
