@@ -51,8 +51,8 @@ async function render(container) {
     status.textContent = 'Слушаю… говори сейчас';
     result.innerHTML = '';
     try {
-      const heard = await recognizeOnce();
       const target = PHRASES[idx];
+      const heard = await recognizeOnce();
       const s = similarity(target, heard);
       if (!container.querySelector('#sp-result')) return;
       status.textContent = '';

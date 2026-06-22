@@ -12,7 +12,7 @@ export function recognizeOnce(lang = 'es-ES') {
     r.maxAlternatives = 1;
     let got = false;
     r.onresult = (e) => { got = true; resolve(e.results[0][0].transcript); };
-    r.onerror = (e) => reject(new Error('Ошибка распознавания: ' + (e.error || 'неизвестно')));
+    r.onerror = (e) => { got = true; reject(new Error('Ошибка распознавания: ' + (e.error || 'неизвестно'))); };
     r.onend = () => { if (!got) reject(new Error('Речь не распознана. Попробуй ещё раз, ближе к микрофону.')); };
     r.start();
   });

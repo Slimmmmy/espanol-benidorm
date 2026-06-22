@@ -5,7 +5,7 @@ import { escapeHtml } from './util.js';
 async function render(container) {
   container.innerHTML = '<h1>Прогресс</h1><p class="status">Загрузка…</p>';
   const s = await getStats();
-  if (!container.isConnected && !container.querySelector) return;
+  if (!container.isConnected) return;
   const e = escapeHtml;
   const weakHtml = s.weak.length
     ? s.weak.map((w) => `<div class="word-local">📌 ${e(w.topic)} — ${w.count}</div>`).join('')
