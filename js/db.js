@@ -72,3 +72,13 @@ export async function importAll(data) {
     await asPromise(tx(db, 'words', 'readwrite').put(word));
   }
 }
+
+export async function getWord(id) {
+  const db = await openDB();
+  return asPromise(tx(db, 'words', 'readonly').get(id));
+}
+
+export async function deleteWord(id) {
+  const db = await openDB();
+  await asPromise(tx(db, 'words', 'readwrite').delete(id));
+}
