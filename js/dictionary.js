@@ -32,7 +32,11 @@ async function renderList(container) {
     b.onclick = () => { const w = words.find((x) => String(x.id) === b.dataset.say); if (w) speak(w.es); };
   });
   listEl.querySelectorAll('[data-del]').forEach((b) => {
-    b.onclick = async () => { await deleteWord(Number(b.dataset.del)); renderList(container); };
+    b.onclick = async () => {
+      await deleteWord(Number(b.dataset.del));
+      if (!container.querySelector('#dic-list')) return; // ушли на другой экран
+      renderList(container);
+    };
   });
 }
 
@@ -65,6 +69,7 @@ async function render(container) {
       preview.querySelector('#dic-save').onclick = async () => {
         const now = Date.now();
         await putWord({ ...w, createdAt: now, ...newCard(now) });
+        if (!container.querySelector('#dic-preview')) return; // ушли на другой экран
         preview.innerHTML = '';
         inputEl.value = '';
         status.textContent = 'Сохранено в словарь.';

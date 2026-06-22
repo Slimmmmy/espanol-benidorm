@@ -21,6 +21,7 @@ export function schedule(card, grade, now) {
   let interval;
   if (c.reps === 1) interval = grade === 'easy' ? 2 : 1;
   else if (c.reps === 2) interval = grade === 'easy' ? 4 : 3;
+  // для 'easy' ease уже повышен выше — намеренно более крутой рост интервала
   else interval = Math.round(card.interval * c.ease * (grade === 'easy' ? 1.3 : 1));
   c.interval = interval;
   c.due = now + interval * DAY;

@@ -15,6 +15,7 @@ function renderEmpty(container) {
 async function grade(container, g) {
   const updated = { ...current, ...schedule(current, g, Date.now()) };
   await putWord(updated);
+  if (!container.querySelector('.study-card, .status')) return; // ушли на другой экран
   queue = queue.filter((w) => w.id !== current.id);
   if (g === 'again') queue.push(updated); // вернуть в конец очереди на сегодня
   renderCard(container);
@@ -49,6 +50,7 @@ function renderCard(container) {
 }
 
 async function render(container) {
+  current = null;
   queue = dueCards(await getAllWords(), Date.now());
   renderCard(container);
 }
