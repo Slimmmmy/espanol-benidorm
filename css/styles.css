@@ -7,7 +7,7 @@ label { display:block; margin:12px 0; color:var(--muted); font-size:14px; }
 input, select { width:100%; padding:12px; margin-top:6px; border-radius:10px; border:1px solid #334155;
   background:var(--card); color:var(--fg); font-size:16px; }
 button { margin:8px 8px 0 0; padding:12px 16px; border:none; border-radius:10px;
-  background:var(--accent); color:#06210f; font-size:16px; font-weight:600; }
+  background:var(--accent); color:#06210f; font-size:16px; font-weight:600; cursor: pointer; }
 .status { margin-top:12px; color:var(--muted); }
 #nav { position:fixed; bottom:0; left:0; right:0; display:flex; justify-content:space-around;
   background:var(--card); border-top:1px solid #334155; padding:6px 0; }

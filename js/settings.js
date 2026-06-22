@@ -10,7 +10,7 @@ async function render(container) {
   container.innerHTML = `
     <h1>Настройки</h1>
     <label>API-ключ Claude
-      <input id="set-key" type="password" placeholder="sk-ant-..." value="${apiKey}">
+      <input id="set-key" type="password" placeholder="sk-ant-...">
     </label>
     <label>Модель
       <select id="set-model">
@@ -31,6 +31,7 @@ async function render(container) {
   `;
   container.querySelector('#set-model').value = model;
   container.querySelector('#set-level').value = level;
+  container.querySelector('#set-key').value = apiKey;
 
   const status = container.querySelector('#set-status');
 
