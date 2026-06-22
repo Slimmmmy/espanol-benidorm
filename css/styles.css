@@ -26,3 +26,15 @@ button.danger { background:#ef4444; color:#fff; }
 .study-front, .study-es { font-size:22px; text-align:center; margin:12px 0; }
 .grade-row { margin-top:14px; }
 .grade-row button { flex:1; }
+textarea { width:100%; padding:12px; margin-top:6px; border-radius:10px; border:1px solid #334155;
+  background:var(--card); color:var(--fg); font-size:16px; font-family:inherit; }
+.dlg-controls { display:flex; gap:8px; margin:10px 0; flex-wrap:wrap; }
+.dlg-line { margin:8px 0; line-height:1.4; }
+.dlg-speaker { color:var(--accent); font-weight:600; margin-right:6px; }
+.dlg-ru { display:block; margin-left:8px; }
+.dlg-q { margin-top:14px; }
+.opt { flex:1; }
+.opt.ok { background:#22c55e; color:#06210f; }
+button.ok { background:#22c55e; }
+.gr-ok { color:#22c55e; font-weight:600; }
+.gr-bad { color:#fbbf24; font-weight:600; }
