@@ -1,6 +1,6 @@
 import { getSetting } from './db.js';
 import { extractJson } from './util.js';
-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM } from './prompts.js';
+import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM } from './prompts.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-4-5';
 const API_URL = 'https://api.anthropic.com/v1/messages';
@@ -90,6 +90,16 @@ export async function gradeSpeech(target, heard) {
     system: SPEECH_COACH_SYSTEM,
     messages: [{ role: 'user', content: `Эталон: ${target}\nРаспозналось: ${heard}` }],
     maxTokens: 500,
+  });
+  return extractJson(text);
+}
+
+export async function generateDailyWords(knownEs = []) {
+  const known = knownEs.slice(0, 200).join(', ');
+  const text = await callClaude({
+    system: DAILY_WORDS_SYSTEM,
+    messages: [{ role: 'user', content: `Слова, которые ученик уже знает (не повторяй их): ${known || '(пока пусто)'}` }],
+    maxTokens: 800,
   });
   return extractJson(text);
 }
