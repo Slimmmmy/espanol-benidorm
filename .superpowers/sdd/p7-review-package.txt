@@ -1,0 +1,421 @@
+# Review package: plan-7-cloud-sync (143b765..HEAD)
+
+## Commits
+61b0b8c feat: auto-sync on startup, cache v7
+7b99fae feat: sync settings fields and manual sync button
+a3ad945 feat: Supabase cloud sync (pull/merge/apply/push)
+be2e397 feat: bulkReplaceWords/bulkReplaceMistakes for sync apply
+fbfaa3a feat: snapshot merge logic with tests
+
+## Stat
+ index.html         |  2 ++
+ js/db.js           | 18 ++++++++++++
+ js/merge.js        | 75 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ js/settings.js     | 31 +++++++++++++++++++++
+ js/sync.js         | 80 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ sw.js              |  3 +-
+ test/merge.test.js | 44 ++++++++++++++++++++++++++++++
+ 7 files changed, 252 insertions(+), 1 deletion(-)
+
+## Full diff
+diff --git a/index.html b/index.html
+index 0ec7f1d..f1eba0a 100644
+--- a/index.html
++++ b/index.html
+@@ -10,26 +10,28 @@
+   <link rel="manifest" href="manifest.webmanifest">
+   <link rel="apple-touch-icon" href="icons/icon-192.png">
+   <link rel="stylesheet" href="css/styles.css">
+   <title>Español Benidorm</title>
+ </head>
+ <body>
+   <main id="screen"></main>
+   <nav id="nav"></nav>
+   <script type="module">
+     import { startApp } from './js/app.js';
++    import { autoSync } from './js/sync.js';
+     import './js/teacher.js';
+     import './js/study.js';
+     import './js/daily.js';
+     import './js/dictionary.js';
+     import './js/listening.js';
+     import './js/speech.js';
+     import './js/grammar.js';
+     import './js/progress.js';
+     import './js/settings.js';
+     startApp();
++    autoSync();
+     if ('serviceWorker' in navigator) {
+       navigator.serviceWorker.register('sw.js').catch(() => {});
+     }
+   </script>
+ </body>
+ </html>
+diff --git a/js/db.js b/js/db.js
+index c64ef6f..6f08bc1 100644
+--- a/js/db.js
++++ b/js/db.js
+@@ -88,10 +88,28 @@ export async function deleteWord(id) {
+ 
+ export async function addMistake(m) {
+   const db = await openDB();
+   return asPromise(tx(db, 'mistakes', 'readwrite').add(m));
+ }
+ 
+ export async function getAllMistakes() {
+   const db = await openDB();
+   return asPromise(tx(db, 'mistakes', 'readonly').getAll());
+ }
++
++export async function bulkReplaceWords(words) {
++  const db = await openDB();
++  await asPromise(tx(db, 'words', 'readwrite').clear());
++  for (const w of words || []) {
++    const { id, ...rest } = w;
++    await asPromise(tx(db, 'words', 'readwrite').add(rest));
++  }
++}
++
++export async function bulkReplaceMistakes(items) {
++  const db = await openDB();
++  await asPromise(tx(db, 'mistakes', 'readwrite').clear());
++  for (const m of items || []) {
++    const { id, ...rest } = m;
++    await asPromise(tx(db, 'mistakes', 'readwrite').add(rest));
++  }
++}
+diff --git a/js/merge.js b/js/merge.js
+new file mode 100644
+index 0000000..3ab1c24
+--- /dev/null
++++ b/js/merge.js
+@@ -0,0 +1,75 @@
++// Слияние снимков данных между устройствами. Чистые функции, без побочных эффектов.
++
++function normEs(s) { return String(s || '').trim().toLowerCase(); }
++
++function freshness(w) { return [w.reps || 0, w.due || 0, w.createdAt || 0]; }
++
++function fresher(a, b) {
++  const fa = freshness(a), fb = freshness(b);
++  for (let i = 0; i < fa.length; i++) {
++    if (fa[i] !== fb[i]) return fa[i] > fb[i] ? a : b;
++  }
++  return a;
++}
++
++export function mergeWords(a, b) {
++  const map = new Map();
++  for (const w of [...(a || []), ...(b || [])]) {
++    const k = normEs(w.es);
++    if (!k) continue;
++    const { id, ...rest } = w;
++    map.set(k, map.has(k) ? fresher(map.get(k), rest) : rest);
++  }
++  return [...map.values()];
++}
++
++export function mergeMistakes(a, b) {
++  const map = new Map();
++  for (const m of [...(a || []), ...(b || [])]) {
++    const { id, ...rest } = m;
++    const k = `${rest.phrase}|${rest.createdAt}`;
++    if (!map.has(k)) map.set(k, rest);
++  }
++  return [...map.values()];
++}
++
++function mergeStudyDays(a, b) {
++  return [...new Set([...(a || []), ...(b || [])])].sort();
++}
++
++function mergeLessonHistory(a, b) {
++  const map = new Map();
++  for (const e of [...(a || []), ...(b || [])]) {
++    const k = `${e.topic}|${e.date}`;
++    if (!map.has(k)) map.set(k, e);
++  }
++  return [...map.values()].sort((x, y) => (x.date || 0) - (y.date || 0));
++}
++
++function addedCount(set) { return ((set && set.words) || []).filter((w) => w.added).length; }
++
++export function mergeSettings(a, b) {
++  const A = a || {}, B = b || {};
++  const out = { ...B, ...A };
++  out.studyDays = mergeStudyDays(A.studyDays, B.studyDays);
++  out.lessonHistory = mergeLessonHistory(A.lessonHistory, B.lessonHistory);
++  const ta = A.teacherProfile, tb = B.teacherProfile;
++  if (ta || tb) {
++    out.teacherProfile = ((ta && ta.updatedAt) || 0) >= ((tb && tb.updatedAt) || 0) ? (ta || tb) : (tb || ta);
++  }
++  for (const key of new Set([...Object.keys(A), ...Object.keys(B)])) {
++    if (key.startsWith('daily-')) {
++      const da = A[key], db = B[key];
++      out[key] = (da && db) ? (addedCount(da) >= addedCount(db) ? da : db) : (da || db);
++    }
++  }
++  return out;
++}
++
++export function mergeSnapshots(local, remote) {
++  return {
++    words: mergeWords((local || {}).words, (remote || {}).words),
++    mistakes: mergeMistakes((local || {}).mistakes, (remote || {}).mistakes),
++    settings: mergeSettings((local || {}).settings, (remote || {}).settings),
++  };
++}
+diff --git a/js/settings.js b/js/settings.js
+index b60af6c..cf0e379 100644
+--- a/js/settings.js
++++ b/js/settings.js
+@@ -1,18 +1,22 @@
+ import { registerFeature } from './app.js';
+ import { getSetting, setSetting } from './db.js';
+ import { testConnection, DEFAULT_MODEL } from './claude.js';
++import { syncNow } from './sync.js';
+ 
+ async function render(container) {
+   const apiKey = (await getSetting('apiKey')) || '';
+   const model = (await getSetting('model')) || DEFAULT_MODEL;
+   const level = (await getSetting('level')) || 'A2-B1';
++  const supabaseUrl = (await getSetting('supabaseUrl')) || '';
++  const supabaseKey = (await getSetting('supabaseKey')) || '';
++  const syncCode = (await getSetting('syncCode')) || '';
+ 
+   container.innerHTML = `
+     <h1>Настройки</h1>
+     <label>API-ключ Claude
+       <input id="set-key" type="password" placeholder="sk-ant-...">
+     </label>
+     <label>Модель
+       <select id="set-model">
+         <option value="claude-haiku-4-5">claude-haiku-4-5 (быстрая, дешёвая)</option>
+         <option value="claude-sonnet-4-6">claude-sonnet-4-6 (для диалогов)</option>
+@@ -20,34 +24,61 @@ async function render(container) {
+     </label>
+     <label>Уровень
+       <select id="set-level">
+         <option value="A0-A1">A0–A1</option>
+         <option value="A2-B1">A2–B1</option>
+         <option value="B2+">B2+</option>
+       </select>
+     </label>
+     <button id="set-save">Сохранить</button>
+     <button id="set-test">Проверить связь</button>
++    <h2>Синхронизация (между устройствами)</h2>
++    <label>Supabase URL
++      <input id="set-surl" type="text" placeholder="https://xxxx.supabase.co" value="${supabaseUrl}">
++    </label>
++    <label>Supabase anon-ключ
++      <input id="set-skey" type="password" value="${supabaseKey}">
++    </label>
++    <label>Код синхронизации (одинаковый на всех устройствах)
++      <input id="set-scode" type="text" value="${syncCode}">
++    </label>
++    <button id="set-sync">Синхронизировать сейчас</button>
+     <p id="set-status" class="status"></p>
+   `;
+   container.querySelector('#set-model').value = model;
+   container.querySelector('#set-level').value = level;
+   container.querySelector('#set-key').value = apiKey;
+ 
+   const status = container.querySelector('#set-status');
+ 
+   container.querySelector('#set-save').onclick = async () => {
+     await setSetting('apiKey', container.querySelector('#set-key').value.trim());
+     await setSetting('model', container.querySelector('#set-model').value);
+     await setSetting('level', container.querySelector('#set-level').value);
++    await setSetting('supabaseUrl', container.querySelector('#set-surl').value.trim().replace(/\/+$/, ''));
++    await setSetting('supabaseKey', container.querySelector('#set-skey').value.trim());
++    await setSetting('syncCode', container.querySelector('#set-scode').value.trim());
+     status.textContent = 'Сохранено.';
+   };
+ 
+   container.querySelector('#set-test').onclick = async () => {
+     status.textContent = 'Проверяю…';
+     await setSetting('apiKey', container.querySelector('#set-key').value.trim());
+     const result = await testConnection();
+     status.textContent = result.message;
+   };
++
++  container.querySelector('#set-sync').onclick = async () => {
++    await setSetting('supabaseUrl', container.querySelector('#set-surl').value.trim().replace(/\/+$/, ''));
++    await setSetting('supabaseKey', container.querySelector('#set-skey').value.trim());
++    await setSetting('syncCode', container.querySelector('#set-scode').value.trim());
++    status.textContent = 'Синхронизирую…';
++    try {
++      await syncNow();
++      status.textContent = 'Готово — данные синхронизированы.';
++    } catch (e) {
++      status.textContent = e.message;
++    }
++  };
+ }
+ 
+ registerFeature({ id: 'settings', title: 'Настройки', icon: '⚙️', order: 90, render });
+diff --git a/js/sync.js b/js/sync.js
+new file mode 100644
+index 0000000..21e46a5
+--- /dev/null
++++ b/js/sync.js
+@@ -0,0 +1,80 @@
++import { getSetting, setSetting, exportAll, getAllMistakes, bulkReplaceWords, bulkReplaceMistakes } from './db.js';
++import { mergeSnapshots } from './merge.js';
++
++const SECRET_KEYS = ['apiKey', 'supabaseUrl', 'supabaseKey', 'syncCode'];
++
++export async function getSyncConfig() {
++  return {
++    url: ((await getSetting('supabaseUrl')) || '').replace(/\/+$/, ''),
++    key: (await getSetting('supabaseKey')) || '',
++    code: (await getSetting('syncCode')) || '',
++  };
++}
++
++export async function pullRemote(cfg) {
++  let res;
++  try {
++    res = await fetch(`${cfg.url}/rest/v1/sync?code=eq.${encodeURIComponent(cfg.code)}&select=data`, {
++      headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}` },
++    });
++  } catch (e) {
++    throw new Error('Нет сети — синхронизация недоступна.');
++  }
++  if (!res.ok) throw new Error(`Ошибка чтения из облака (${res.status}). Проверь URL и ключ.`);
++  const rows = await res.json();
++  return rows && rows[0] ? rows[0].data : null;
++}
++
++export async function pushRemote(cfg, data) {
++  const res = await fetch(`${cfg.url}/rest/v1/sync`, {
++    method: 'POST',
++    headers: {
++      apikey: cfg.key,
++      Authorization: `Bearer ${cfg.key}`,
++      'Content-Type': 'application/json',
++      Prefer: 'resolution=merge-duplicates,return=minimal',
++    },
++    body: JSON.stringify({ code: cfg.code, data, updated_at: new Date().toISOString() }),
++  });
++  if (!res.ok) throw new Error(`Ошибка записи в облако (${res.status}).`);
++}
++
++export async function localSnapshot() {
++  const { settings, words } = await exportAll();
++  const mistakes = await getAllMistakes();
++  const clean = {};
++  for (const [k, v] of Object.entries(settings || {})) {
++    if (!SECRET_KEYS.includes(k)) clean[k] = v;
++  }
++  return { words, mistakes, settings: clean };
++}
++
++export async function applySnapshot(snap) {
++  await bulkReplaceWords(snap.words || []);
++  await bulkReplaceMistakes(snap.mistakes || []);
++  for (const [k, v] of Object.entries(snap.settings || {})) {
++    if (!SECRET_KEYS.includes(k)) await setSetting(k, v);
++  }
++}
++
++export async function syncNow() {
++  const cfg = await getSyncConfig();
++  if (!cfg.url || !cfg.key || !cfg.code) {
++    throw new Error('Заполни Supabase URL, ключ и код синхронизации в Настройках.');
++  }
++  const remote = await pullRemote(cfg);
++  const local = await localSnapshot();
++  const merged = remote ? mergeSnapshots(local, remote) : local;
++  await applySnapshot(merged);
++  await pushRemote(cfg, merged);
++  return merged;
++}
++
++export async function autoSync() {
++  try {
++    const cfg = await getSyncConfig();
++    if (cfg.url && cfg.key && cfg.code) await syncNow();
++  } catch (e) {
++    // тихо: офлайн или не настроено — приложение работает локально
++  }
++}
+diff --git a/sw.js b/sw.js
+index e65ae2f..02a8b0e 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,22 +1,23 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v6';
++const CACHE = 'espanol-v7';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
+   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
+   './js/listening.js', './js/grammar.js',
+   './js/stats.js', './js/asr.js', './js/speech.js', './js/progress.js',
+   './js/daily.js',
+   './js/profile.js', './js/teacher.js',
++  './js/merge.js', './js/sync.js',
+   './icons/icon-192.png', './icons/icon-512.png',
+ ];
+ 
+ self.addEventListener('install', (e) => {
+   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+ });
+ 
+ self.addEventListener('activate', (e) => {
+   e.waitUntil(
+     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+diff --git a/test/merge.test.js b/test/merge.test.js
+new file mode 100644
+index 0000000..43c8a7d
+--- /dev/null
++++ b/test/merge.test.js
+@@ -0,0 +1,44 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { mergeWords, mergeMistakes, mergeSettings, mergeSnapshots } from '../js/merge.js';
++
++test('mergeWords: объединяет разные слова', () => {
++  const a = [{ id: 1, es: 'perro', ru: 'собака', reps: 0 }];
++  const b = [{ id: 1, es: 'gato', ru: 'кот', reps: 0 }];
++  const out = mergeWords(a, b).map((w) => w.es).sort();
++  assert.deepEqual(out, ['gato', 'perro']);
++});
++
++test('mergeWords: для дубля берёт более свежий (больше reps), без id', () => {
++  const a = [{ id: 1, es: 'Perro', ru: 'собака', reps: 1, due: 10 }];
++  const b = [{ id: 5, es: 'perro', ru: 'собака', reps: 3, due: 5 }];
++  const out = mergeWords(a, b);
++  assert.equal(out.length, 1);
++  assert.equal(out[0].reps, 3);
++  assert.equal('id' in out[0], false);
++});
++
++test('mergeMistakes: объединяет и дедуплицирует по phrase|createdAt', () => {
++  const a = [{ id: 1, phrase: 'voy', createdAt: 100, topic: 'x' }];
++  const b = [{ id: 2, phrase: 'voy', createdAt: 100, topic: 'x' }, { id: 3, phrase: 'soy', createdAt: 200, topic: 'y' }];
++  assert.equal(mergeMistakes(a, b).length, 2);
++});
++
++test('mergeSettings: studyDays объединяются и сортируются', () => {
++  const out = mergeSettings({ studyDays: ['2026-06-22', '2026-06-20'] }, { studyDays: ['2026-06-21'] });
++  assert.deepEqual(out.studyDays, ['2026-06-20', '2026-06-21', '2026-06-22']);
++});
++
++test('mergeSettings: teacherProfile — позже обновлённый', () => {
++  const a = { teacherProfile: { note: 'A', updatedAt: 100 } };
++  const b = { teacherProfile: { note: 'B', updatedAt: 200 } };
++  assert.equal(mergeSettings(a, b).teacherProfile.note, 'B');
++});
++
++test('mergeSnapshots: собирает все три части', () => {
++  const local = { words: [{ es: 'a' }], mistakes: [], settings: { level: 'A2-B1' } };
++  const remote = { words: [{ es: 'b' }], mistakes: [], settings: {} };
++  const m = mergeSnapshots(local, remote);
++  assert.equal(m.words.length, 2);
++  assert.equal(m.settings.level, 'A2-B1');
++});

@@ -17,6 +17,7 @@
   <nav id="nav"></nav>
   <script type="module">
     import { startApp } from './js/app.js';
+    import { autoSync } from './js/sync.js';
     import './js/teacher.js';
     import './js/study.js';
     import './js/daily.js';
@@ -27,6 +28,7 @@
     import './js/progress.js';
     import './js/settings.js';
     startApp();
+    autoSync();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }

@@ -95,3 +95,35 @@ export async function getAllMistakes() {
   const db = await openDB();
   return asPromise(tx(db, 'mistakes', 'readonly').getAll());
 }
+
+export async function bulkReplaceWords(words) {
+  const db = await openDB();
+  const t = db.transaction('words', 'readwrite');
+  const store = t.objectStore('words');
+  store.clear();
+  for (const w of words || []) {
+    const { id, ...rest } = w;
+    store.add(rest);
+  }
+  await new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  });
+}
+
+export async function bulkReplaceMistakes(items) {
+  const db = await openDB();
+  const t = db.transaction('mistakes', 'readwrite');
+  const store = t.objectStore('mistakes');
+  store.clear();
+  for (const m of items || []) {
+    const { id, ...rest } = m;
+    store.add(rest);
+  }
+  await new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  });
+}

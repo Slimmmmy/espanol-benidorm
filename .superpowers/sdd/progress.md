@@ -1,8 +1,8 @@
-# Plan 6 — Teacher assistant: progress ledger
+# Plan 7 — Cloud sync: progress ledger
 
-Branch: plan-6-teacher
-BASE: 67c86df
+Branch: plan-7-cloud-sync
+BASE: 143b765
 
-- [x] Tasks 1-2 (18917e3..b60bfa9)
-- [x] Tasks 3-4 (d196011..a94c87c)
-- [x] Final whole-branch review (clean after fix 95297e3)
+- [x] Tasks 1-3 (fbfaa3a..a3ad945)
+- [x] Tasks 4-5 (7b99fae..61b0b8c)
+- [x] Final whole-branch review (clean after fix 5a22a8f)
