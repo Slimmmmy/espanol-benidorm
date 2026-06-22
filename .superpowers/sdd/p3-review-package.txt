@@ -1,0 +1,444 @@
+# Review package: plan-3-audio-grammar (1877df3..HEAD)
+
+## Commits
+fb3743a feat: wire audio and grammar screens, cache v3, styles
+a0b481b feat: grammar screen (AI check, Russian explanation, mistake logging)
+0b4c263 feat: audio screen (AI dialogue, role playback, transcript, comprehension)
+aaff112 feat: role-based dialogue playback (speakSequence, stopSpeaking)
+74e5c3f feat: mistakes store (db v2) with addMistake/getAllMistakes
+472a030 feat: generateDialogue and checkGrammar AI calls
+151e449 feat: dialogue and grammar system prompts
+
+## Stat
+ css/styles.css  |  12 +++++++
+ index.html      |   2 ++
+ js/claude.js    |  20 +++++++++++-
+ js/db.js        |  15 ++++++++-
+ js/grammar.js   |  46 ++++++++++++++++++++++++++
+ js/listening.js | 100 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ js/prompts.js   |  24 ++++++++++++++
+ js/tts.js       |  26 +++++++++++++++
+ sw.js           |   3 +-
+ 9 files changed, 245 insertions(+), 3 deletions(-)
+
+## Full diff
+diff --git a/css/styles.css b/css/styles.css
+index 17abb96..27a9d4b 100644
+--- a/css/styles.css
++++ b/css/styles.css
+@@ -19,10 +19,22 @@ h2 { font-size:18px; margin:24px 0 8px; }
+ .muted { color:var(--muted); font-weight:400; }
+ .word-card, .study-card { background:var(--card); border:1px solid #334155; border-radius:12px; padding:14px; margin:10px 0; }
+ .word-main { font-size:17px; line-height:1.4; }
+ .word-ex { margin-top:6px; color:#cbd5e1; font-style:italic; }
+ .word-local { margin-top:6px; color:#fbbf24; font-size:14px; }
+ .word-actions, .grade-row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+ button.danger { background:#ef4444; color:#fff; }
+ .study-front, .study-es { font-size:22px; text-align:center; margin:12px 0; }
+ .grade-row { margin-top:14px; }
+ .grade-row button { flex:1; }
++textarea { width:100%; padding:12px; margin-top:6px; border-radius:10px; border:1px solid #334155;
++  background:var(--card); color:var(--fg); font-size:16px; font-family:inherit; }
++.dlg-controls { display:flex; gap:8px; margin:10px 0; flex-wrap:wrap; }
++.dlg-line { margin:8px 0; line-height:1.4; }
++.dlg-speaker { color:var(--accent); font-weight:600; margin-right:6px; }
++.dlg-ru { display:block; margin-left:8px; }
++.dlg-q { margin-top:14px; }
++.opt { flex:1; }
++.opt.ok { background:#22c55e; color:#06210f; }
++button.ok { background:#22c55e; }
++.gr-ok { color:#22c55e; font-weight:600; }
++.gr-bad { color:#fbbf24; font-weight:600; }
+diff --git a/index.html b/index.html
+index f12835e..26e7109 100644
+--- a/index.html
++++ b/index.html
+@@ -12,18 +12,20 @@
+   <link rel="stylesheet" href="css/styles.css">
+   <title>Español Benidorm</title>
+ </head>
+ <body>
+   <main id="screen"></main>
+   <nav id="nav"></nav>
+   <script type="module">
+     import { startApp } from './js/app.js';
+     import './js/study.js';
+     import './js/dictionary.js';
++    import './js/listening.js';
++    import './js/grammar.js';
+     import './js/settings.js';
+     startApp();
+     if ('serviceWorker' in navigator) {
+       navigator.serviceWorker.register('sw.js').catch(() => {});
+     }
+   </script>
+ </body>
+ </html>
+diff --git a/js/claude.js b/js/claude.js
+index a6c2f5b..4f79ddc 100644
+--- a/js/claude.js
++++ b/js/claude.js
+@@ -1,13 +1,13 @@
+ import { getSetting } from './db.js';
+ import { extractJson } from './util.js';
+-import { WORD_ENRICH_SYSTEM } from './prompts.js';
++import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM } from './prompts.js';
+ 
+ export const DEFAULT_MODEL = 'claude-haiku-4-5';
+ const API_URL = 'https://api.anthropic.com/v1/messages';
+ 
+ export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
+   const apiKey = await getSetting('apiKey');
+   if (!apiKey) {
+     throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
+   }
+   const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
+@@ -59,10 +59,28 @@ export async function testConnection() {
+ }
+ 
+ export async function enrichWord(input) {
+   const text = await callClaude({
+     system: WORD_ENRICH_SYSTEM,
+     messages: [{ role: 'user', content: input }],
+     maxTokens: 400,
+   });
+   return extractJson(text);
+ }
++
++export async function generateDialogue(topic, level = 'A2-B1') {
++  const text = await callClaude({
++    system: DIALOGUE_SYSTEM,
++    messages: [{ role: 'user', content: `Тема: ${topic}. Уровень: ${level}.` }],
++    maxTokens: 900,
++  });
++  return extractJson(text);
++}
++
++export async function checkGrammar(text) {
++  const out = await callClaude({
++    system: GRAMMAR_SYSTEM,
++    messages: [{ role: 'user', content: text }],
++    maxTokens: 500,
++  });
++  return extractJson(out);
++}
+diff --git a/js/db.js b/js/db.js
+index f8e16ac..aaaae9c 100644
+--- a/js/db.js
++++ b/js/db.js
+@@ -1,27 +1,30 @@
+ // Обёртка IndexedDB с версионированной схемой и миграциями.
+ const DB_NAME = 'espanol';
+-const DB_VERSION = 1;
++const DB_VERSION = 2;
+ 
+ let dbPromise = null;
+ 
+ export function openDB() {
+   if (dbPromise) return dbPromise;
+   dbPromise = new Promise((resolve, reject) => {
+     const req = indexedDB.open(DB_NAME, DB_VERSION);
+     req.onupgradeneeded = (e) => {
+       const db = req.result;
+       // Миграции по возрастанию версии. Новые версии добавляют свои блоки.
+       if (e.oldVersion < 1) {
+         db.createObjectStore('settings', { keyPath: 'key' });
+         db.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
+       }
++      if (e.oldVersion < 2) {
++        db.createObjectStore('mistakes', { keyPath: 'id', autoIncrement: true });
++      }
+     };
+     req.onsuccess = () => resolve(req.result);
+     req.onerror = () => reject(req.error);
+   });
+   return dbPromise;
+ }
+ 
+ function tx(db, store, mode) {
+   return db.transaction(store, mode).objectStore(store);
+ }
+@@ -75,10 +78,20 @@ export async function importAll(data) {
+ 
+ export async function getWord(id) {
+   const db = await openDB();
+   return asPromise(tx(db, 'words', 'readonly').get(id));
+ }
+ 
+ export async function deleteWord(id) {
+   const db = await openDB();
+   await asPromise(tx(db, 'words', 'readwrite').delete(id));
+ }
++
++export async function addMistake(m) {
++  const db = await openDB();
++  return asPromise(tx(db, 'mistakes', 'readwrite').put(m));
++}
++
++export async function getAllMistakes() {
++  const db = await openDB();
++  return asPromise(tx(db, 'mistakes', 'readonly').getAll());
++}
+diff --git a/js/grammar.js b/js/grammar.js
+new file mode 100644
+index 0000000..a09e815
+--- /dev/null
++++ b/js/grammar.js
+@@ -0,0 +1,46 @@
++import { registerFeature } from './app.js';
++import { checkGrammar } from './claude.js';
++import { addMistake } from './db.js';
++import { escapeHtml } from './util.js';
++
++async function check(container) {
++  const input = container.querySelector('#gr-input').value.trim();
++  if (!input) return;
++  const status = container.querySelector('#gr-status');
++  const out = container.querySelector('#gr-out');
++  status.textContent = 'Проверяю…';
++  out.innerHTML = '';
++  try {
++    const r = await checkGrammar(input);
++    if (!container.querySelector('#gr-out')) return; // ушли на другой экран
++    status.textContent = '';
++    const e = escapeHtml;
++    out.innerHTML = `
++      <div class="study-card">
++        <div class="${r.ok ? 'gr-ok' : 'gr-bad'}">${r.ok ? '✅ Верно' : '✏️ Есть что поправить'}</div>
++        ${r.corrected ? `<div class="study-es"><b>${e(r.corrected)}</b></div>` : ''}
++        ${r.explanation ? `<div class="word-ex">${e(r.explanation)}</div>` : ''}
++        ${r.topic ? `<div class="word-local">📌 Тема: ${e(r.topic)}</div>` : ''}
++      </div>`;
++    if (r.ok === false) {
++      await addMistake({ phrase: input, corrected: r.corrected || '', topic: r.topic || '', createdAt: Date.now() });
++    }
++  } catch (err) {
++    status.textContent = err.message;
++  }
++}
++
++async function render(container) {
++  container.innerHTML = `
++    <h1>Грамматика</h1>
++    <label>Напиши фразу на испанском — проверю
++      <textarea id="gr-input" rows="3" placeholder="напр. Ayer yo voy a la playa"></textarea>
++    </label>
++    <button id="gr-check">Проверить</button>
++    <p id="gr-status" class="status"></p>
++    <div id="gr-out"></div>
++  `;
++  container.querySelector('#gr-check').onclick = () => check(container);
++}
++
++registerFeature({ id: 'grammar', title: 'Грамматика', icon: '✍️', order: 40, render });
+diff --git a/js/listening.js b/js/listening.js
+new file mode 100644
+index 0000000..7dcad8e
+--- /dev/null
++++ b/js/listening.js
+@@ -0,0 +1,100 @@
++import { registerFeature } from './app.js';
++import { generateDialogue } from './claude.js';
++import { speakSequence, stopSpeaking, speak } from './tts.js';
++import { escapeHtml } from './util.js';
++
++const TOPICS = [
++  'В баре заказать кофе и тапас',
++  'На рынке купить фрукты',
++  'Разговор с соседом по дому',
++  'У врача / в аптеке',
++  'На пляже в Бенидорме',
++  'Снять квартиру у хозяина',
++  'В супермаркете Mercadona',
++  'Спросить дорогу в городе',
++];
++
++let dialogue = null;
++let answered = false;
++
++function dialogueHtml(d) {
++  const e = escapeHtml;
++  const lines = d.lines.map((l) => `
++    <div class="dlg-line"><span class="dlg-speaker">${e(l.speaker)}:</span>
++      <span class="dlg-es">${e(l.es)}</span>
++      <span class="dlg-ru muted hidden">${e(l.ru)}</span></div>`).join('');
++  const opts = (d.options || []).map((o, i) =>
++    `<button class="opt" data-i="${i}">${e(o)}</button>`).join('');
++  return `
++    <div class="study-card">
++      <h2>${e(d.title)}</h2>
++      <div class="dlg-controls">
++        <button id="lst-play">▶︎ Прослушать</button>
++        <button id="lst-stop">⏹</button>
++        <button id="lst-trans">Показать перевод</button>
++      </div>
++      <div id="lst-lines">${lines}</div>
++      ${d.question ? `<div class="dlg-q"><b>${e(d.question)}</b><div class="grade-row">${opts}</div><p id="lst-verdict" class="status"></p></div>` : ''}
++      ${d.notes ? `<div class="word-local">📍 ${e(d.notes)}</div>` : ''}
++    </div>`;
++}
++
++function wireDialogue(container, d) {
++  container.querySelector('#lst-play').onclick = () => speakSequence(d.lines);
++  container.querySelector('#lst-stop').onclick = () => stopSpeaking();
++  const trans = container.querySelector('#lst-trans');
++  trans.onclick = () => {
++    const hidden = container.querySelector('.dlg-ru.hidden');
++    const show = !!hidden;
++    container.querySelectorAll('.dlg-ru').forEach((el) => el.classList.toggle('hidden', !show));
++    trans.textContent = show ? 'Скрыть перевод' : 'Показать перевод';
++  };
++  container.querySelectorAll('.opt').forEach((b) => {
++    b.onclick = () => {
++      if (answered) return;
++      answered = true;
++      const chosen = Number(b.dataset.i);
++      const verdict = container.querySelector('#lst-verdict');
++      if (chosen === d.answer) { b.classList.add('ok'); verdict.textContent = '✅ Верно!'; }
++      else {
++        b.classList.add('danger');
++        const right = container.querySelector(`.opt[data-i="${d.answer}"]`);
++        if (right) right.classList.add('ok');
++        verdict.textContent = '❌ Не совсем. Правильный вариант подсвечен.';
++      }
++    };
++  });
++}
++
++async function generate(container) {
++  const status = container.querySelector('#lst-status');
++  const topic = container.querySelector('#lst-topic').value;
++  status.textContent = 'Генерирую диалог…';
++  container.querySelector('#lst-out').innerHTML = '';
++  try {
++    dialogue = await generateDialogue(topic);
++    answered = false;
++    if (!container.querySelector('#lst-out')) return; // ушли на другой экран
++    status.textContent = '';
++    container.querySelector('#lst-out').innerHTML = dialogueHtml(dialogue);
++    wireDialogue(container, dialogue);
++  } catch (err) {
++    status.textContent = err.message;
++  }
++}
++
++async function render(container) {
++  const opts = TOPICS.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
++  container.innerHTML = `
++    <h1>Аудио</h1>
++    <label>Тема диалога
++      <select id="lst-topic">${opts}</select>
++    </label>
++    <button id="lst-gen">Сгенерировать и слушать</button>
++    <p id="lst-status" class="status"></p>
++    <div id="lst-out"></div>
++  `;
++  container.querySelector('#lst-gen').onclick = () => generate(container);
++}
++
++registerFeature({ id: 'listening', title: 'Аудио', icon: '🎧', order: 30, render });
+diff --git a/js/prompts.js b/js/prompts.js
+index 2ecbd31..8f80354 100644
+--- a/js/prompts.js
++++ b/js/prompts.js
+@@ -12,10 +12,34 @@ export const WORD_ENRICH_SYSTEM = `Ты — двуязычный словарь
+ {
+   "es": "слово/фраза на испанском (база — стандартный кастильский)",
+   "ru": "перевод на русский",
+   "example": "одно короткое предложение-пример на испанском",
+   "exampleRu": "перевод примера на русский",
+   "pos": "часть речи по-русски (например: существительное, глагол, прилагательное)",
+   "gender": "для существительного артикль el или la, иначе пустая строка",
+   "local": "как это слово/выражение используют именно в районе Бенидорма/Валенсии, или местный синоним; по-русски; если особенностей нет — пустая строка"
+ }
+ Только валидный JSON.`;
++
++export const DIALOGUE_SYSTEM = `Ты — преподаватель испанского для русскоязычного ученика A2–B1, живущего рядом с Бенидормом (Валенсийское сообщество).
++Сгенерируй короткий бытовой диалог (4–6 реплик) на заданную тему, с естественным местным колоритом района Бенидорма/Валенсии.
++Верни СТРОГО один JSON-объект, без markdown и без пояснений:
++{
++  "title": "короткое название сцены по-русски",
++  "lines": [ { "speaker": "имя/роль на испанском", "es": "реплика на испанском", "ru": "перевод на русский" } ],
++  "question": "один вопрос на понимание по-русски",
++  "options": ["вариант 1", "вариант 2", "вариант 3"],
++  "answer": 0,
++  "notes": "1-3 местных словечка/выражения из диалога с пояснением, по-русски"
++}
++Поле "answer" — индекс правильного варианта в "options" (0,1,2). Только валидный JSON.`;
++
++export const GRAMMAR_SYSTEM = `Ты — проверяющий грамматику испанского для русскоязычного ученика A2–B1.
++Тебе дают фразу на испанском. Проверь её.
++Верни СТРОГО один JSON-объект, без markdown и без пояснений:
++{
++  "ok": true|false,
++  "corrected": "исправленная фраза на испанском (если ошибок нет — та же фраза)",
++  "explanation": "объяснение по-русски: что не так и почему; если всё верно — короткая похвала",
++  "topic": "краткая тема ошибки по-русски (напр. 'согласование рода', 'спряжение в pretérito'); если ошибок нет — пустая строка"
++}
++Учитывай местный узус района Бенидорма, но исправляй по нормам стандартного испанского. Только валидный JSON.`;
+diff --git a/js/tts.js b/js/tts.js
+index f58c7a0..67d33fc 100644
+--- a/js/tts.js
++++ b/js/tts.js
+@@ -2,10 +2,36 @@
+ export function speak(text, lang = 'es-ES') {
+   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
+   const u = new SpeechSynthesisUtterance(text);
+   u.lang = lang;
+   const esVoice = speechSynthesis.getVoices().find((v) => v.lang && v.lang.startsWith('es'));
+   if (esVoice) u.voice = esVoice;
+   speechSynthesis.cancel();
+   speechSynthesis.speak(u);
+   return true;
+ }
++
++export function stopSpeaking() {
++  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
++    speechSynthesis.cancel();
++  }
++}
++
++export function speakSequence(lines, lang = 'es-ES') {
++  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
++  speechSynthesis.cancel();
++  const esVoice = speechSynthesis.getVoices().find((v) => v.lang && v.lang.startsWith('es'));
++  const speakers = [];
++  const pitchFor = (speaker) => {
++    if (!speaker) return 1.0;
++    let i = speakers.indexOf(speaker);
++    if (i === -1) { speakers.push(speaker); i = speakers.length - 1; }
++    return i % 2 === 0 ? 1.05 : 0.8;
++  };
++  for (const line of lines) {
++    const u = new SpeechSynthesisUtterance(line.es);
++    u.lang = lang;
++    if (esVoice) u.voice = esVoice;
++    u.pitch = pitchFor(line.speaker);
++    speechSynthesis.speak(u);
++  }
++}
+diff --git a/sw.js b/sw.js
+index 6c887c2..70e15a7 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,18 +1,19 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v2';
++const CACHE = 'espanol-v3';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
+   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
++  './js/listening.js', './js/grammar.js',
+   './icons/icon-192.png', './icons/icon-512.png',
+ ];
+ 
+ self.addEventListener('install', (e) => {
+   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+ });
+ 
+ self.addEventListener('activate', (e) => {
+   e.waitUntil(
+     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
