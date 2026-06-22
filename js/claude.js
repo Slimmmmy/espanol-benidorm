@@ -1,0 +1,57 @@
+import { getSetting } from './db.js';
+
+export const DEFAULT_MODEL = 'claude-haiku-4-5';
+const API_URL = 'https://api.anthropic.com/v1/messages';
+
+export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
+  const apiKey = await getSetting('apiKey');
+  if (!apiKey) {
+    throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
+  }
+  const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
+
+  let res;
+  try {
+    res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: chosenModel,
+        max_tokens: maxTokens,
+        system,
+        messages,
+      }),
+    });
+  } catch (e) {
+    throw new Error('Нет сети. AI-функции недоступны офлайн.');
+  }
+
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.json()).error?.message || ''; } catch {}
+    if (res.status === 401) throw new Error('Неверный API-ключ. Проверьте Настройки.');
+    if (res.status === 429) throw new Error('Превышен лимит запросов. Попробуйте позже.');
+    throw new Error(`Ошибка API (${res.status}). ${detail}`);
+  }
+
+  const data = await res.json();
+  const block = (data.content || []).find((b) => b.type === 'text');
+  return block ? block.text : '';
+}
+
+export async function testConnection() {
+  try {
+    const text = await callClaude({
+      messages: [{ role: 'user', content: 'Responde solo con la palabra: OK' }],
+      maxTokens: 16,
+    });
+    return { ok: true, message: `Связь есть. Ответ: ${text.trim()}` };
+  } catch (e) {
+    return { ok: false, message: e.message };
+  }
+}
