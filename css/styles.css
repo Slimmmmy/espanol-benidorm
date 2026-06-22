@@ -14,3 +14,15 @@ button { margin:8px 8px 0 0; padding:12px 16px; border:none; border-radius:10px;
 .nav-btn { flex:1; text-align:center; text-decoration:none; color:var(--muted); font-size:11px; padding:4px; }
 .nav-btn.active { color:var(--accent); }
 .nav-icon { display:block; font-size:20px; }
+h2 { font-size:18px; margin:24px 0 8px; }
+.hidden { display:none; }
+.muted { color:var(--muted); font-weight:400; }
+.word-card, .study-card { background:var(--card); border:1px solid #334155; border-radius:12px; padding:14px; margin:10px 0; }
+.word-main { font-size:17px; line-height:1.4; }
+.word-ex { margin-top:6px; color:#cbd5e1; font-style:italic; }
+.word-local { margin-top:6px; color:#fbbf24; font-size:14px; }
+.word-actions, .grade-row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+button.danger { background:#ef4444; color:#fff; }
+.study-front, .study-es { font-size:22px; text-align:center; margin:12px 0; }
+.grade-row { margin-top:14px; }
+.grade-row button { flex:1; }
