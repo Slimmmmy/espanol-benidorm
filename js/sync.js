@@ -5,7 +5,7 @@ const SECRET_KEYS = ['apiKey', 'supabaseUrl', 'supabaseKey', 'syncCode'];
 
 export async function getSyncConfig() {
   return {
-    url: ((await getSetting('supabaseUrl')) || '').replace(/\/+$/, ''),
+    url: ((await getSetting('supabaseUrl')) || '').trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '').replace(/\/+$/, ''),
     key: (await getSetting('supabaseKey')) || '',
     code: (await getSetting('syncCode')) || '',
   };
