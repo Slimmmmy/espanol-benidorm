@@ -1,6 +1,6 @@
 // Обёртка IndexedDB с версионированной схемой и миграциями.
 const DB_NAME = 'espanol';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -14,6 +14,9 @@ export function openDB() {
       if (e.oldVersion < 1) {
         db.createObjectStore('settings', { keyPath: 'key' });
         db.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
+      }
+      if (e.oldVersion < 2) {
+        db.createObjectStore('mistakes', { keyPath: 'id', autoIncrement: true });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -81,4 +84,14 @@ export async function getWord(id) {
 export async function deleteWord(id) {
   const db = await openDB();
   await asPromise(tx(db, 'words', 'readwrite').delete(id));
+}
+
+export async function addMistake(m) {
+  const db = await openDB();
+  return asPromise(tx(db, 'mistakes', 'readwrite').put(m));
+}
+
+export async function getAllMistakes() {
+  const db = await openDB();
+  return asPromise(tx(db, 'mistakes', 'readonly').getAll());
 }
