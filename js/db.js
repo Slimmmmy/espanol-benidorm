@@ -88,7 +88,7 @@ export async function deleteWord(id) {
 
 export async function addMistake(m) {
   const db = await openDB();
-  return asPromise(tx(db, 'mistakes', 'readwrite').put(m));
+  return asPromise(tx(db, 'mistakes', 'readwrite').add(m));
 }
 
 export async function getAllMistakes() {

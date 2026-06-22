@@ -27,6 +27,7 @@ export function speakSequence(lines, lang = 'es-ES') {
     if (i === -1) { speakers.push(speaker); i = speakers.length - 1; }
     return i % 2 === 0 ? 1.05 : 0.8;
   };
+  // Реплики ставятся в очередь синтеза синхронно — полагаемся на очередь Chrome (целевой браузер).
   for (const line of lines) {
     const u = new SpeechSynthesisUtterance(line.es);
     u.lang = lang;

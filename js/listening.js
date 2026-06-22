@@ -1,6 +1,6 @@
 import { registerFeature } from './app.js';
 import { generateDialogue } from './claude.js';
-import { speakSequence, stopSpeaking, speak } from './tts.js';
+import { speakSequence, stopSpeaking } from './tts.js';
 import { escapeHtml } from './util.js';
 
 const TOPICS = [
@@ -16,6 +16,7 @@ const TOPICS = [
 
 let dialogue = null;
 let answered = false;
+let generating = false;
 
 function dialogueHtml(d) {
   const e = escapeHtml;
@@ -54,11 +55,12 @@ function wireDialogue(container, d) {
       if (answered) return;
       answered = true;
       const chosen = Number(b.dataset.i);
+      const answerIdx = Number(d.answer);
       const verdict = container.querySelector('#lst-verdict');
-      if (chosen === d.answer) { b.classList.add('ok'); verdict.textContent = '✅ Верно!'; }
+      if (chosen === answerIdx) { b.classList.add('ok'); verdict.textContent = '✅ Верно!'; }
       else {
         b.classList.add('danger');
-        const right = container.querySelector(`.opt[data-i="${d.answer}"]`);
+        const right = container.querySelector(`.opt[data-i="${answerIdx}"]`);
         if (right) right.classList.add('ok');
         verdict.textContent = '❌ Не совсем. Правильный вариант подсвечен.';
       }
@@ -67,6 +69,8 @@ function wireDialogue(container, d) {
 }
 
 async function generate(container) {
+  if (generating) return;
+  generating = true;
   const status = container.querySelector('#lst-status');
   const topic = container.querySelector('#lst-topic').value;
   status.textContent = 'Генерирую диалог…';
@@ -79,7 +83,10 @@ async function generate(container) {
     container.querySelector('#lst-out').innerHTML = dialogueHtml(dialogue);
     wireDialogue(container, dialogue);
   } catch (err) {
-    status.textContent = err.message;
+    const s = container.querySelector('#lst-status');
+    if (s) s.textContent = err.message;
+  } finally {
+    generating = false;
   }
 }
 

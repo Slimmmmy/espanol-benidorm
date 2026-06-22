@@ -26,7 +26,8 @@ async function check(container) {
       await addMistake({ phrase: input, corrected: r.corrected || '', topic: r.topic || '', createdAt: Date.now() });
     }
   } catch (err) {
-    status.textContent = err.message;
+    const s = container.querySelector('#gr-status');
+    if (s) s.textContent = err.message;
   }
 }
 
