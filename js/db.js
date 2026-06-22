@@ -95,3 +95,21 @@ export async function getAllMistakes() {
   const db = await openDB();
   return asPromise(tx(db, 'mistakes', 'readonly').getAll());
 }
+
+export async function bulkReplaceWords(words) {
+  const db = await openDB();
+  await asPromise(tx(db, 'words', 'readwrite').clear());
+  for (const w of words || []) {
+    const { id, ...rest } = w;
+    await asPromise(tx(db, 'words', 'readwrite').add(rest));
+  }
+}
+
+export async function bulkReplaceMistakes(items) {
+  const db = await openDB();
+  await asPromise(tx(db, 'mistakes', 'readwrite').clear());
+  for (const m of items || []) {
+    const { id, ...rest } = m;
+    await asPromise(tx(db, 'mistakes', 'readwrite').add(rest));
+  }
+}
