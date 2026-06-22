@@ -1,8 +1,7 @@
-# Plan 4 — Speech + Progress: progress ledger
+# Plan 5 — Daily 5 words: progress ledger
 
-Branch: plan-4-speech-progress
-BASE: 6941bb4
+Branch: plan-5-daily-words
+BASE: 54425e9
 
-- [x] Tasks 1-4 (c8d5d77..d0a0602)
-- [x] Tasks 5-7 (6231a5e..a7b3339)
-- [x] Final whole-branch review (clean after fix 1510ae3)
+- [x] Tasks 1-3 (3894fee..7e0cf35)
+- [x] Final whole-branch review (clean after fix 21ffacb)

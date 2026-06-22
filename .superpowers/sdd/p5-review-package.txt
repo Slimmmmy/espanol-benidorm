@@ -1,0 +1,280 @@
+# Review package: plan-5-daily-words (54425e9..HEAD)
+
+## Commits
+7e0cf35 feat: wire daily-words screen, cache v5, styles
+9f88761 feat: daily 5-words screen (AI picks, add to SRS, apply with check)
+3894fee feat: generateDailyWords AI daily vocabulary picker
+
+## Stat
+ css/styles.css |   4 ++
+ index.html     |   1 +
+ js/claude.js   |  12 +++++-
+ js/daily.js    | 120 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ js/prompts.js  |  10 +++++
+ sw.js          |   3 +-
+ 6 files changed, 148 insertions(+), 2 deletions(-)
+
+## Full diff
+diff --git a/css/styles.css b/css/styles.css
+index ce9a1e1..de598d8 100644
+--- a/css/styles.css
++++ b/css/styles.css
+@@ -36,10 +36,14 @@ textarea { width:100%; padding:12px; margin-top:6px; border-radius:10px; border:
+ .opt { flex:1; }
+ .opt.ok { background:#22c55e; color:#06210f; }
+ button.ok { background:#22c55e; }
+ .gr-ok { color:#22c55e; font-weight:600; }
+ .gr-bad { color:#fbbf24; font-weight:600; }
+ .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+ .stat { background:var(--card); border:1px solid #334155; border-radius:12px; padding:16px; text-align:center; }
+ .stat-num { font-size:30px; font-weight:700; color:var(--accent); }
+ .stat-lbl { color:var(--muted); font-size:13px; margin-top:4px; }
+ .sp-score { font-size:18px; font-weight:600; margin:10px 0; }
++.daily-progress { color:var(--accent); font-weight:700; font-size:16px; }
++.daily-added { color:var(--accent); align-self:center; font-size:14px; }
++.daily-apply { margin-top:10px; }
++.daily-feedback { margin-top:8px; }
+diff --git a/index.html b/index.html
+index 5fd09e1..d09203c 100644
+--- a/index.html
++++ b/index.html
+@@ -11,20 +11,21 @@
+   <link rel="apple-touch-icon" href="icons/icon-192.png">
+   <link rel="stylesheet" href="css/styles.css">
+   <title>Español Benidorm</title>
+ </head>
+ <body>
+   <main id="screen"></main>
+   <nav id="nav"></nav>
+   <script type="module">
+     import { startApp } from './js/app.js';
+     import './js/study.js';
++    import './js/daily.js';
+     import './js/dictionary.js';
+     import './js/listening.js';
+     import './js/speech.js';
+     import './js/grammar.js';
+     import './js/progress.js';
+     import './js/settings.js';
+     startApp();
+     if ('serviceWorker' in navigator) {
+       navigator.serviceWorker.register('sw.js').catch(() => {});
+     }
+diff --git a/js/claude.js b/js/claude.js
+index eab3c8e..a716646 100644
+--- a/js/claude.js
++++ b/js/claude.js
+@@ -1,13 +1,13 @@
+ import { getSetting } from './db.js';
+ import { extractJson } from './util.js';
+-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM } from './prompts.js';
++import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM } from './prompts.js';
+ 
+ export const DEFAULT_MODEL = 'claude-haiku-4-5';
+ const API_URL = 'https://api.anthropic.com/v1/messages';
+ 
+ export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
+   const apiKey = await getSetting('apiKey');
+   if (!apiKey) {
+     throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
+   }
+   const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
+@@ -86,10 +86,20 @@ export async function checkGrammar(text) {
+ }
+ 
+ export async function gradeSpeech(target, heard) {
+   const text = await callClaude({
+     system: SPEECH_COACH_SYSTEM,
+     messages: [{ role: 'user', content: `Эталон: ${target}\nРаспозналось: ${heard}` }],
+     maxTokens: 500,
+   });
+   return extractJson(text);
+ }
++
++export async function generateDailyWords(knownEs = []) {
++  const known = knownEs.slice(0, 200).join(', ');
++  const text = await callClaude({
++    system: DAILY_WORDS_SYSTEM,
++    messages: [{ role: 'user', content: `Слова, которые ученик уже знает (не повторяй их): ${known || '(пока пусто)'}` }],
++    maxTokens: 800,
++  });
++  return extractJson(text);
++}
+diff --git a/js/daily.js b/js/daily.js
+new file mode 100644
+index 0000000..694c73e
+--- /dev/null
++++ b/js/daily.js
+@@ -0,0 +1,120 @@
++import { registerFeature } from './app.js';
++import { generateDailyWords, checkGrammar } from './claude.js';
++import { getSetting, setSetting, getAllWords, putWord } from './db.js';
++import { newCard } from './srs.js';
++import { dayKey, recordStudyDay } from './stats.js';
++import { speak } from './tts.js';
++import { escapeHtml } from './util.js';
++
++function todayKey() { return `daily-${dayKey(Date.now())}`; }
++
++async function loadOrCreate(statusEl) {
++  const k = todayKey();
++  const existing = await getSetting(k);
++  if (existing && Array.isArray(existing.words) && existing.words.length) return existing;
++  statusEl.textContent = 'Подбираю 5 новых слов на сегодня…';
++  const known = (await getAllWords()).map((w) => w.es).filter(Boolean);
++  const data = await generateDailyWords(known);
++  const words = (data.words || []).slice(0, 5).map((w) => ({
++    es: w.es || '', ru: w.ru || '', example: w.example || '',
++    exampleRu: w.exampleRu || '', local: w.local || '', added: false,
++  }));
++  const set = { date: dayKey(Date.now()), words };
++  await setSetting(k, set);
++  statusEl.textContent = '';
++  return set;
++}
++
++function cardHtml(w, i) {
++  const e = escapeHtml;
++  return `
++    <div class="word-card" data-i="${i}">
++      <div class="word-main"><b>${e(w.es)}</b> — ${e(w.ru)}</div>
++      ${w.example ? `<div class="word-ex">${e(w.example)}${w.exampleRu ? `<br><span class="muted">${e(w.exampleRu)}</span>` : ''}</div>` : ''}
++      ${w.local ? `<div class="word-local">📍 ${e(w.local)}</div>` : ''}
++      <div class="word-actions">
++        <button data-say="${i}">🔊</button>
++        ${w.added ? '<span class="daily-added">✓ в словаре</span>' : `<button data-add="${i}">Добавить в словарь</button>`}
++        <button data-apply="${i}">Применить</button>
++      </div>
++      <div class="daily-apply hidden" data-applybox="${i}">
++        <textarea data-sent="${i}" rows="2" placeholder="Составь предложение с этим словом…"></textarea>
++        <button data-check="${i}">Проверить</button>
++        <div class="daily-feedback" data-fb="${i}"></div>
++      </div>
++    </div>`;
++}
++
++async function render(container) {
++  container.innerHTML = `<h1>5 слов на сегодня</h1><p id="dly-status" class="status">Загрузка…</p><div id="dly-list"></div>`;
++  const status = container.querySelector('#dly-status');
++  let set;
++  try {
++    set = await loadOrCreate(status);
++  } catch (err) {
++    const s = container.querySelector('#dly-status');
++    if (s) s.textContent = err.message;
++    return;
++  }
++  if (!container.querySelector('#dly-list')) return;
++
++  function paint() {
++    const added = set.words.filter((w) => w.added).length;
++    status.innerHTML = `<span class="daily-progress">Добавлено ${added}/5</span>`;
++    container.querySelector('#dly-list').innerHTML = set.words.map((w, i) => cardHtml(w, i)).join('');
++    wire();
++  }
++
++  function wire() {
++    const list = container.querySelector('#dly-list');
++    list.querySelectorAll('[data-say]').forEach((b) => {
++      b.onclick = () => speak(set.words[Number(b.dataset.say)].es);
++    });
++    list.querySelectorAll('[data-add]').forEach((b) => {
++      b.onclick = async () => {
++        const i = Number(b.dataset.add);
++        const w = set.words[i];
++        const now = Date.now();
++        await putWord({ es: w.es, ru: w.ru, example: w.example, exampleRu: w.exampleRu, local: w.local, createdAt: now, ...newCard(now) });
++        await recordStudyDay();
++        w.added = true;
++        await setSetting(todayKey(), set);
++        if (!container.querySelector('#dly-list')) return;
++        paint();
++      };
++    });
++    list.querySelectorAll('[data-apply]').forEach((b) => {
++      b.onclick = () => {
++        const box = list.querySelector(`[data-applybox="${b.dataset.apply}"]`);
++        if (box) box.classList.toggle('hidden');
++      };
++    });
++    list.querySelectorAll('[data-check]').forEach((b) => {
++      b.onclick = async () => {
++        const i = b.dataset.check;
++        const ta = list.querySelector(`[data-sent="${i}"]`);
++        const fb = list.querySelector(`[data-fb="${i}"]`);
++        const sentence = ta.value.trim();
++        if (!sentence) return;
++        fb.textContent = 'Проверяю…';
++        try {
++          const r = await checkGrammar(sentence);
++          const box = list.querySelector(`[data-fb="${i}"]`);
++          if (!box) return;
++          const e = escapeHtml;
++          box.innerHTML = `
++            <div class="${r.ok ? 'gr-ok' : 'gr-bad'}">${r.ok ? '✅ Верно' : '✏️ Поправим'}</div>
++            ${r.corrected ? `<div class="word-ex"><b>${e(r.corrected)}</b></div>` : ''}
++            ${r.explanation ? `<div class="word-ex">${e(r.explanation)}</div>` : ''}`;
++        } catch (err) {
++          const box = list.querySelector(`[data-fb="${i}"]`);
++          if (box) box.textContent = err.message;
++        }
++      };
++    });
++  }
++
++  paint();
++}
++
++registerFeature({ id: 'daily', title: '5 слов', icon: '🗓️', order: 15, render });
+diff --git a/js/prompts.js b/js/prompts.js
+index 55905c8..d2ba8de 100644
+--- a/js/prompts.js
++++ b/js/prompts.js
+@@ -46,10 +46,20 @@ export const GRAMMAR_SYSTEM = `Ты — проверяющий граммати
+ 
+ export const SPEECH_COACH_SYSTEM = `Ты — логопед-преподаватель испанского для русскоязычного ученика A2–B1, живущего рядом с Бенидормом.
+ Тебе дают эталонную фразу на испанском и текст, распознанный из речи ученика.
+ По расхождениям оцени вероятные проблемы произношения и верни СТРОГО один JSON-объект, без markdown:
+ {
+   "sounds": "какие звуки вероятно произнесены неточно и как их правильно артикулировать, по-русски; учитывай типичные трудности русскоязычных: раскатистое rr, межзубные c/z, мягкие ll/y, различие b/v, отсутствие смягчения согласных",
+   "rhythm": "советы по ударениям, темпу и паузам именно для этой фразы, по-русски",
+   "exercise": "одно короткое упражнение или скороговорка (trabalenguas) на проблемный звук: испанский текст и перевод"
+ }
+ Только валидный JSON.`;
++
++export const DAILY_WORDS_SYSTEM = `Ты подбираешь ежедневную порцию из 5 новых полезных РАЗГОВОРНЫХ слов или коротких выражений на испанском для русскоязычного ученика уровня A2–B1, живущего рядом с Бенидормом (Валенсийское сообщество).
++Слова должны быть практичными для повседневного общения здесь и сейчас: магазин, бар, соседи, услуги, улица, транспорт. Не повторяй слова, которые ученик уже знает.
++Верни СТРОГО один JSON-объект, без markdown и без пояснений:
++{
++  "words": [
++    { "es": "слово/выражение на испанском", "ru": "перевод на русский", "example": "короткое предложение-пример на испанском", "exampleRu": "перевод примера на русский", "local": "как используют в районе Бенидорма/Валенсии или местный нюанс, по-русски; если нет — пустая строка" }
++  ]
++}
++Ровно 5 элементов в массиве "words". Только валидный JSON.`;
+diff --git a/sw.js b/sw.js
+index 648756b..f154226 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,20 +1,21 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v4';
++const CACHE = 'espanol-v5';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
+   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
+   './js/listening.js', './js/grammar.js',
+   './js/stats.js', './js/asr.js', './js/speech.js', './js/progress.js',
++  './js/daily.js',
+   './icons/icon-192.png', './icons/icon-512.png',
+ ];
+ 
+ self.addEventListener('install', (e) => {
+   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+ });
+ 
+ self.addEventListener('activate', (e) => {
+   e.waitUntil(
+     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
