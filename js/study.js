@@ -3,6 +3,7 @@ import { getAllWords, putWord } from './db.js';
 import { dueCards, schedule } from './srs.js';
 import { speak } from './tts.js';
 import { escapeHtml } from './util.js';
+import { recordStudyDay } from './stats.js';
 
 let queue = [];
 let current = null;
@@ -15,6 +16,7 @@ function renderEmpty(container) {
 async function grade(container, g) {
   const updated = { ...current, ...schedule(current, g, Date.now()) };
   await putWord(updated);
+  await recordStudyDay();
   if (!container.querySelector('.study-card, .status')) return; // ушли на другой экран
   queue = queue.filter((w) => w.id !== current.id);
   if (g === 'again') queue.push(updated); // вернуть в конец очереди на сегодня

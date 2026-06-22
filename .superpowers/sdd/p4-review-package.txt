@@ -1,0 +1,536 @@
+# Review package: plan-4-speech-progress (6941bb4..HEAD)
+
+## Commits
+a7b3339 feat: wire speech and progress screens, cache v4, styles
+636731a feat: progress screen and study-day tracking for streak
+6231a5e feat: speech coach screen (intelligibility score + AI coaching + drills)
+d0a0602 feat: one-shot speech recognition wrapper
+8683e80 feat: gradeSpeech AI pronunciation coaching
+4dc088b feat: stats module with streak computation and tests
+c8d5d77 feat: normalizeText and similarity (intelligibility scoring) with tests
+
+## Stat
+ css/styles.css     |  5 ++++
+ index.html         |  2 ++
+ js/asr.js          | 19 ++++++++++++
+ js/claude.js       | 11 ++++++-
+ js/progress.js     | 26 ++++++++++++++++
+ js/prompts.js      | 10 +++++++
+ js/speech.js       | 87 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ js/stats.js        | 54 +++++++++++++++++++++++++++++++++
+ js/study.js        |  2 ++
+ js/util.js         | 33 +++++++++++++++++++++
+ sw.js              |  3 +-
+ test/stats.test.js | 23 +++++++++++++++
+ test/util.test.js  | 23 ++++++++++++++-
+ 13 files changed, 295 insertions(+), 3 deletions(-)
+
+## Full diff
+diff --git a/css/styles.css b/css/styles.css
+index 27a9d4b..ce9a1e1 100644
+--- a/css/styles.css
++++ b/css/styles.css
+@@ -31,10 +31,15 @@ textarea { width:100%; padding:12px; margin-top:6px; border-radius:10px; border:
+ .dlg-controls { display:flex; gap:8px; margin:10px 0; flex-wrap:wrap; }
+ .dlg-line { margin:8px 0; line-height:1.4; }
+ .dlg-speaker { color:var(--accent); font-weight:600; margin-right:6px; }
+ .dlg-ru { display:block; margin-left:8px; }
+ .dlg-q { margin-top:14px; }
+ .opt { flex:1; }
+ .opt.ok { background:#22c55e; color:#06210f; }
+ button.ok { background:#22c55e; }
+ .gr-ok { color:#22c55e; font-weight:600; }
+ .gr-bad { color:#fbbf24; font-weight:600; }
++.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
++.stat { background:var(--card); border:1px solid #334155; border-radius:12px; padding:16px; text-align:center; }
++.stat-num { font-size:30px; font-weight:700; color:var(--accent); }
++.stat-lbl { color:var(--muted); font-size:13px; margin-top:4px; }
++.sp-score { font-size:18px; font-weight:600; margin:10px 0; }
+diff --git a/index.html b/index.html
+index 26e7109..5fd09e1 100644
+--- a/index.html
++++ b/index.html
+@@ -13,19 +13,21 @@
+   <title>Español Benidorm</title>
+ </head>
+ <body>
+   <main id="screen"></main>
+   <nav id="nav"></nav>
+   <script type="module">
+     import { startApp } from './js/app.js';
+     import './js/study.js';
+     import './js/dictionary.js';
+     import './js/listening.js';
++    import './js/speech.js';
+     import './js/grammar.js';
++    import './js/progress.js';
+     import './js/settings.js';
+     startApp();
+     if ('serviceWorker' in navigator) {
+       navigator.serviceWorker.register('sw.js').catch(() => {});
+     }
+   </script>
+ </body>
+ </html>
+diff --git a/js/asr.js b/js/asr.js
+new file mode 100644
+index 0000000..9c5c714
+--- /dev/null
++++ b/js/asr.js
+@@ -0,0 +1,19 @@
++// Однократное распознавание речи через Web Speech API (лучше всего в Chrome).
++export function recognizeOnce(lang = 'es-ES') {
++  return new Promise((resolve, reject) => {
++    const SR = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
++    if (!SR) {
++      reject(new Error('Распознавание речи недоступно в этом браузере. Открой приложение в Chrome.'));
++      return;
++    }
++    const r = new SR();
++    r.lang = lang;
++    r.interimResults = false;
++    r.maxAlternatives = 1;
++    let got = false;
++    r.onresult = (e) => { got = true; resolve(e.results[0][0].transcript); };
++    r.onerror = (e) => reject(new Error('Ошибка распознавания: ' + (e.error || 'неизвестно')));
++    r.onend = () => { if (!got) reject(new Error('Речь не распознана. Попробуй ещё раз, ближе к микрофону.')); };
++    r.start();
++  });
++}
+diff --git a/js/claude.js b/js/claude.js
+index 4f79ddc..eab3c8e 100644
+--- a/js/claude.js
++++ b/js/claude.js
+@@ -1,13 +1,13 @@
+ import { getSetting } from './db.js';
+ import { extractJson } from './util.js';
+-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM } from './prompts.js';
++import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM } from './prompts.js';
+ 
+ export const DEFAULT_MODEL = 'claude-haiku-4-5';
+ const API_URL = 'https://api.anthropic.com/v1/messages';
+ 
+ export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
+   const apiKey = await getSetting('apiKey');
+   if (!apiKey) {
+     throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
+   }
+   const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
+@@ -77,10 +77,19 @@ export async function generateDialogue(topic, level = 'A2-B1') {
+ }
+ 
+ export async function checkGrammar(text) {
+   const out = await callClaude({
+     system: GRAMMAR_SYSTEM,
+     messages: [{ role: 'user', content: text }],
+     maxTokens: 500,
+   });
+   return extractJson(out);
+ }
++
++export async function gradeSpeech(target, heard) {
++  const text = await callClaude({
++    system: SPEECH_COACH_SYSTEM,
++    messages: [{ role: 'user', content: `Эталон: ${target}\nРаспозналось: ${heard}` }],
++    maxTokens: 500,
++  });
++  return extractJson(text);
++}
+diff --git a/js/progress.js b/js/progress.js
+new file mode 100644
+index 0000000..c62bf58
+--- /dev/null
++++ b/js/progress.js
+@@ -0,0 +1,26 @@
++import { registerFeature } from './app.js';
++import { getStats } from './stats.js';
++import { escapeHtml } from './util.js';
++
++async function render(container) {
++  container.innerHTML = '<h1>Прогресс</h1><p class="status">Загрузка…</p>';
++  const s = await getStats();
++  if (!container.isConnected && !container.querySelector) return;
++  const e = escapeHtml;
++  const weakHtml = s.weak.length
++    ? s.weak.map((w) => `<div class="word-local">📌 ${e(w.topic)} — ${w.count}</div>`).join('')
++    : '<p class="status">Пока нет ошибок в грамматике — так держать!</p>';
++  container.innerHTML = `
++    <h1>Прогресс</h1>
++    <div class="stats-grid">
++      <div class="stat"><div class="stat-num">${s.streak}</div><div class="stat-lbl">дней подряд 🔥</div></div>
++      <div class="stat"><div class="stat-num">${s.words}</div><div class="stat-lbl">слов в словаре</div></div>
++      <div class="stat"><div class="stat-num">${s.learned}</div><div class="stat-lbl">выучено</div></div>
++      <div class="stat"><div class="stat-num">${s.due}</div><div class="stat-lbl">на повтор сегодня</div></div>
++    </div>
++    <h2>Слабые темы (грамматика)</h2>
++    ${weakHtml}
++  `;
++}
++
++registerFeature({ id: 'progress', title: 'Прогресс', icon: '📊', order: 50, render });
+diff --git a/js/prompts.js b/js/prompts.js
+index 8f80354..55905c8 100644
+--- a/js/prompts.js
++++ b/js/prompts.js
+@@ -36,10 +36,20 @@ export const DIALOGUE_SYSTEM = `Ты — преподаватель испанс
+ export const GRAMMAR_SYSTEM = `Ты — проверяющий грамматику испанского для русскоязычного ученика A2–B1.
+ Тебе дают фразу на испанском. Проверь её.
+ Верни СТРОГО один JSON-объект, без markdown и без пояснений:
+ {
+   "ok": true|false,
+   "corrected": "исправленная фраза на испанском (если ошибок нет — та же фраза)",
+   "explanation": "объяснение по-русски: что не так и почему; если всё верно — короткая похвала",
+   "topic": "краткая тема ошибки по-русски (напр. 'согласование рода', 'спряжение в pretérito'); если ошибок нет — пустая строка"
+ }
+ Учитывай местный узус района Бенидорма, но исправляй по нормам стандартного испанского. Только валидный JSON.`;
++
++export const SPEECH_COACH_SYSTEM = `Ты — логопед-преподаватель испанского для русскоязычного ученика A2–B1, живущего рядом с Бенидормом.
++Тебе дают эталонную фразу на испанском и текст, распознанный из речи ученика.
++По расхождениям оцени вероятные проблемы произношения и верни СТРОГО один JSON-объект, без markdown:
++{
++  "sounds": "какие звуки вероятно произнесены неточно и как их правильно артикулировать, по-русски; учитывай типичные трудности русскоязычных: раскатистое rr, межзубные c/z, мягкие ll/y, различие b/v, отсутствие смягчения согласных",
++  "rhythm": "советы по ударениям, темпу и паузам именно для этой фразы, по-русски",
++  "exercise": "одно короткое упражнение или скороговорка (trabalenguas) на проблемный звук: испанский текст и перевод"
++}
++Только валидный JSON.`;
+diff --git a/js/speech.js b/js/speech.js
+new file mode 100644
+index 0000000..cbd95cb
+--- /dev/null
++++ b/js/speech.js
+@@ -0,0 +1,87 @@
++import { registerFeature } from './app.js';
++import { recognizeOnce } from './asr.js';
++import { gradeSpeech } from './claude.js';
++import { speak } from './tts.js';
++import { similarity, escapeHtml } from './util.js';
++
++const PHRASES = [
++  'El perro de San Roque no tiene rabo.',
++  'Tres tristes tigres tragaban trigo en un trigal.',
++  'Quiero una caña y una tapa, por favor.',
++  'La zapatería está cerca de la plaza.',
++  'Me llamo Pablo y vivo cerca de Benidorm.',
++  'El cielo está despejado y hace calor.',
++];
++let idx = 0;
++
++function scoreLabel(s) {
++  if (s >= 0.85) return '🟢 Отлично';
++  if (s >= 0.6) return '🟡 Неплохо';
++  return '🔴 Стоит поработать';
++}
++
++async function render(container) {
++  const e = escapeHtml;
++  container.innerHTML = `
++    <h1>Логопед</h1>
++    <div class="study-card">
++      <div class="study-es"><b id="sp-phrase">${e(PHRASES[idx])}</b></div>
++      <div class="dlg-controls">
++        <button id="sp-listen">🔊 Образец</button>
++        <button id="sp-rec">🎤 Говорить</button>
++        <button id="sp-next">Другая фраза</button>
++      </div>
++      <p id="sp-status" class="status"></p>
++      <div id="sp-result"></div>
++    </div>
++    <p class="status">Распознавание речи лучше всего работает в Chrome. Разреши доступ к микрофону.</p>
++  `;
++  const phraseEl = container.querySelector('#sp-phrase');
++  const status = container.querySelector('#sp-status');
++  const result = container.querySelector('#sp-result');
++
++  container.querySelector('#sp-listen').onclick = () => speak(PHRASES[idx]);
++  container.querySelector('#sp-next').onclick = () => {
++    idx = (idx + 1) % PHRASES.length;
++    phraseEl.textContent = PHRASES[idx];
++    status.textContent = '';
++    result.innerHTML = '';
++  };
++  container.querySelector('#sp-rec').onclick = async () => {
++    status.textContent = 'Слушаю… говори сейчас';
++    result.innerHTML = '';
++    try {
++      const heard = await recognizeOnce();
++      const target = PHRASES[idx];
++      const s = similarity(target, heard);
++      if (!container.querySelector('#sp-result')) return;
++      status.textContent = '';
++      result.innerHTML = `
++        <div class="sp-score">${scoreLabel(s)} — разборчивость ${Math.round(s * 100)}%</div>
++        <div class="word-ex">Распозналось: «${e(heard)}»</div>
++        <button id="sp-coach">Разбор от логопеда</button>
++        <div id="sp-coaching"></div>`;
++      result.querySelector('#sp-coach').onclick = async () => {
++        const coaching = container.querySelector('#sp-coaching');
++        coaching.innerHTML = '<p class="status">Анализирую…</p>';
++        try {
++          const c = await gradeSpeech(target, heard);
++          const box = container.querySelector('#sp-coaching');
++          if (!box) return;
++          box.innerHTML = `
++            ${c.sounds ? `<div class="word-ex">🗣️ ${e(c.sounds)}</div>` : ''}
++            ${c.rhythm ? `<div class="word-ex">🎵 ${e(c.rhythm)}</div>` : ''}
++            ${c.exercise ? `<div class="word-local">🏋️ ${e(c.exercise)}</div>` : ''}`;
++        } catch (err) {
++          const box = container.querySelector('#sp-coaching');
++          if (box) box.innerHTML = `<p class="status">${e(err.message)}</p>`;
++        }
++      };
++    } catch (err) {
++      const s2 = container.querySelector('#sp-status');
++      if (s2) s2.textContent = err.message;
++    }
++  };
++}
++
++registerFeature({ id: 'speech', title: 'Логопед', icon: '🗣️', order: 35, render });
+diff --git a/js/stats.js b/js/stats.js
+new file mode 100644
+index 0000000..fdea75d
+--- /dev/null
++++ b/js/stats.js
+@@ -0,0 +1,54 @@
++import { getSetting, setSetting, getAllWords, getAllMistakes } from './db.js';
++
++export function dayKey(ts) {
++  const d = new Date(ts);
++  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
++}
++
++function prevKey(key) {
++  const d = new Date(key + 'T00:00:00Z');
++  d.setUTCDate(d.getUTCDate() - 1);
++  return d.toISOString().slice(0, 10);
++}
++
++export function computeStreak(days, today) {
++  const set = new Set(days);
++  let cursor = today;
++  if (!set.has(cursor)) {
++    cursor = prevKey(cursor);
++    if (!set.has(cursor)) return 0;
++  }
++  let streak = 0;
++  while (set.has(cursor)) {
++    streak++;
++    cursor = prevKey(cursor);
++  }
++  return streak;
++}
++
++export async function recordStudyDay(now = Date.now()) {
++  const key = dayKey(now);
++  const days = (await getSetting('studyDays')) || [];
++  if (!days.includes(key)) {
++    days.push(key);
++    await setSetting('studyDays', days);
++  }
++}
++
++export async function getStats() {
++  const words = await getAllWords();
++  const mistakes = await getAllMistakes();
++  const days = (await getSetting('studyDays')) || [];
++  const now = Date.now();
++  const due = words.filter((w) => (w.due ?? 0) <= now).length;
++  const learned = words.filter((w) => (w.reps || 0) >= 3).length;
++  const topicMap = {};
++  for (const m of mistakes) {
++    const t = (m.topic || '').trim();
++    if (t) topicMap[t] = (topicMap[t] || 0) + 1;
++  }
++  const weak = Object.entries(topicMap)
++    .sort((a, b) => b[1] - a[1])
++    .map(([topic, count]) => ({ topic, count }));
++  return { words: words.length, learned, due, streak: computeStreak(days, dayKey(now)), weak };
++}
+diff --git a/js/study.js b/js/study.js
+index 84d13fc..de42372 100644
+--- a/js/study.js
++++ b/js/study.js
+@@ -1,27 +1,29 @@
+ import { registerFeature } from './app.js';
+ import { getAllWords, putWord } from './db.js';
+ import { dueCards, schedule } from './srs.js';
+ import { speak } from './tts.js';
+ import { escapeHtml } from './util.js';
++import { recordStudyDay } from './stats.js';
+ 
+ let queue = [];
+ let current = null;
+ 
+ function renderEmpty(container) {
+   container.innerHTML = `<h1>Учить</h1>
+     <p class="status">На сегодня всё повторено 🎉<br>Добавь слова во вкладке «Словарь» или вернись позже.</p>`;
+ }
+ 
+ async function grade(container, g) {
+   const updated = { ...current, ...schedule(current, g, Date.now()) };
+   await putWord(updated);
++  await recordStudyDay();
+   if (!container.querySelector('.study-card, .status')) return; // ушли на другой экран
+   queue = queue.filter((w) => w.id !== current.id);
+   if (g === 'again') queue.push(updated); // вернуть в конец очереди на сегодня
+   renderCard(container);
+ }
+ 
+ function renderCard(container) {
+   if (queue.length === 0) { renderEmpty(container); return; }
+   current = queue[0];
+   const e = escapeHtml;
+diff --git a/js/util.js b/js/util.js
+index 6d5a21d..8ebd3f5 100644
+--- a/js/util.js
++++ b/js/util.js
+@@ -15,10 +15,43 @@ export function extractJson(text) {
+   let s = String(text).trim();
+   const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+   if (fence) s = fence[1].trim();
+   const start = s.indexOf('{');
+   const end = s.lastIndexOf('}');
+   if (start === -1 || end === -1 || end < start) {
+     throw new Error('В ответе модели не найден JSON.');
+   }
+   return JSON.parse(s.slice(start, end + 1));
+ }
++
++export function normalizeText(s) {
++  return String(s || '')
++    .toLowerCase()
++    .normalize('NFD')
++    .replace(/[̀-ͯ]/g, '')
++    .replace(/[^a-z0-9\s]/g, ' ')
++    .replace(/\s+/g, ' ')
++    .trim();
++}
++
++function levenshtein(a, b) {
++  const m = a.length, n = b.length;
++  if (m === 0) return n;
++  if (n === 0) return m;
++  let prev = Array.from({ length: n + 1 }, (_, j) => j);
++  let cur = new Array(n + 1).fill(0);
++  for (let i = 1; i <= m; i++) {
++    cur[0] = i;
++    for (let j = 1; j <= n; j++) {
++      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
++    }
++    [prev, cur] = [cur, prev];
++  }
++  return prev[n];
++}
++
++export function similarity(a, b) {
++  const x = normalizeText(a), y = normalizeText(b);
++  if (!x && !y) return 1;
++  if (!x || !y) return 0;
++  return 1 - levenshtein(x, y) / Math.max(x.length, y.length);
++}
+diff --git a/sw.js b/sw.js
+index 70e15a7..648756b 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,19 +1,20 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v3';
++const CACHE = 'espanol-v4';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
+   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
+   './js/listening.js', './js/grammar.js',
++  './js/stats.js', './js/asr.js', './js/speech.js', './js/progress.js',
+   './icons/icon-192.png', './icons/icon-512.png',
+ ];
+ 
+ self.addEventListener('install', (e) => {
+   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+ });
+ 
+ self.addEventListener('activate', (e) => {
+   e.waitUntil(
+     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+diff --git a/test/stats.test.js b/test/stats.test.js
+new file mode 100644
+index 0000000..b03e6f5
+--- /dev/null
++++ b/test/stats.test.js
+@@ -0,0 +1,23 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { computeStreak } from '../js/stats.js';
++
++test('computeStreak: три дня подряд по сегодня = 3', () => {
++  assert.equal(computeStreak(['2026-06-20', '2026-06-21', '2026-06-22'], '2026-06-22'), 3);
++});
++
++test('computeStreak: серия по вчера (сегодня ещё не занимался) считается', () => {
++  assert.equal(computeStreak(['2026-06-20', '2026-06-21'], '2026-06-22'), 2);
++});
++
++test('computeStreak: пусто = 0', () => {
++  assert.equal(computeStreak([], '2026-06-22'), 0);
++});
++
++test('computeStreak: разрыв обрывает серию', () => {
++  assert.equal(computeStreak(['2026-06-22', '2026-06-20'], '2026-06-22'), 1);
++});
++
++test('computeStreak: ни сегодня, ни вчера = 0', () => {
++  assert.equal(computeStreak(['2026-06-19'], '2026-06-22'), 0);
++});
+diff --git a/test/util.test.js b/test/util.test.js
+index b30399d..6b40156 100644
+--- a/test/util.test.js
++++ b/test/util.test.js
+@@ -1,13 +1,13 @@
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+-import { escapeHtml, extractJson } from '../js/util.js';
++import { escapeHtml, extractJson, normalizeText, similarity } from '../js/util.js';
+ 
+ test('escapeHtml экранирует спецсимволы', () => {
+   assert.equal(escapeHtml('<b>"x"</b>'), '&lt;b&gt;&quot;x&quot;&lt;/b&gt;');
+   assert.equal(escapeHtml("a & b ' c"), 'a &amp; b &#39; c');
+ });
+ 
+ test('escapeHtml: null/undefined → пустая строка', () => {
+   assert.equal(escapeHtml(null), '');
+   assert.equal(escapeHtml(undefined), '');
+ });
+@@ -20,10 +20,31 @@ test('extractJson: в ограждении ```json', () => {
+   assert.deepEqual(extractJson('```json\n{"a":1}\n```'), { a: 1 });
+ });
+ 
+ test('extractJson: с текстом вокруг', () => {
+   assert.deepEqual(extractJson('Вот ответ: {"a":1} спасибо'), { a: 1 });
+ });
+ 
+ test('extractJson: нет JSON → ошибка', () => {
+   assert.throws(() => extractJson('нет данных'), /JSON/);
+ });
++
++test('normalizeText: регистр, диакритика, пунктуация', () => {
++  assert.equal(normalizeText('  ¡Hólá, Múndo!  '), 'hola mundo');
++});
++
++test('similarity: идентичные (с учётом регистра/акцентов) = 1', () => {
++  assert.equal(similarity('Está bien', 'esta bien'), 1);
++});
++
++test('similarity: совсем разное → низкое', () => {
++  assert.ok(similarity('hola', 'xyzqw') < 0.5);
++});
++
++test('similarity: обе пустые = 1, одна пустая = 0', () => {
++  assert.equal(similarity('', ''), 1);
++  assert.equal(similarity('hola', ''), 0);
++});
++
++test('similarity: близкое произношение → высокое', () => {
++  assert.ok(similarity('el perro', 'el pero') > 0.8);
++});
