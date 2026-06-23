@@ -1,6 +1,6 @@
 import { getSetting } from './db.js';
-import { extractJson } from './util.js';
-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM } from './prompts.js';
+import { extractJson, recentMessages } from './util.js';
+import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM } from './prompts.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-4-5';
 const API_URL = 'https://api.anthropic.com/v1/messages';
@@ -134,4 +134,13 @@ export async function generateCourse(profile, goal) {
     maxTokens: 1100,
   });
   return extractJson(text);
+}
+
+export async function chatReply(history, profile) {
+  const messages = recentMessages(history, 20);
+  return callClaude({
+    system: `${CHAT_TUTOR_SYSTEM}\nПрофиль ученика: ${JSON.stringify(profile)}`,
+    messages,
+    maxTokens: 700,
+  });
 }
