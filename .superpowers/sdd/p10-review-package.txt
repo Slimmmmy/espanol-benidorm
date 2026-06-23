@@ -1,0 +1,309 @@
+# Review package: plan-10-assignments (e09dac6..HEAD)
+
+## Commits
+680780b feat: wire assignments screen, cache v11
+1123325 feat: assignments screen (issue, answer, AI check, statuses)
+ab07c17 feat: generateAssignment and checkAssignment AI calls
+83c917a feat: assignments storage and partitionAssignments with tests
+
+## Stat
+ index.html           |  1 +
+ js/assignments.js    | 99 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ js/claude.js         | 20 ++++++++++-
+ js/profile.js        | 16 +++++++++
+ js/prompts.js        | 10 ++++++
+ sw.js                |  3 +-
+ test/profile.test.js | 14 ++++++++
+ 7 files changed, 161 insertions(+), 2 deletions(-)
+
+## Full diff
+diff --git a/index.html b/index.html
+index e83c00b..93df0df 100644
+--- a/index.html
++++ b/index.html
+@@ -19,20 +19,21 @@
+     import { startApp } from './js/app.js';
+     import { autoSync } from './js/sync.js';
+     import './js/teacher.js';
+     import './js/chat.js';
+     import './js/study.js';
+     import './js/daily.js';
+     import './js/dictionary.js';
+     import './js/listening.js';
+     import './js/speech.js';
+     import './js/grammar.js';
++    import './js/assignments.js';
+     import './js/progress.js';
+     import './js/settings.js';
+     startApp();
+     autoSync();
+     if ('serviceWorker' in navigator) {
+       navigator.serviceWorker.register('sw.js').catch(() => {});
+     }
+   </script>
+ </body>
+ </html>
+diff --git a/js/assignments.js b/js/assignments.js
+new file mode 100644
+index 0000000..5775838
+--- /dev/null
++++ b/js/assignments.js
+@@ -0,0 +1,99 @@
++import { registerFeature } from './app.js';
++import { buildProfile, getAssignments, saveAssignments, partitionAssignments } from './profile.js';
++import { generateAssignment, checkAssignment } from './claude.js';
++import { escapeHtml } from './util.js';
++
++let busy = false;
++
++function openHtml(a) {
++  const e = escapeHtml;
++  return `<div class="word-card">
++    <div class="word-main">📝 ${e(a.text)}</div>
++    ${a.topic ? `<div class="word-local">📌 ${e(a.topic)}</div>` : ''}
++    <textarea data-answer="${e(a.id)}" rows="3" placeholder="Твой ответ на испанском…"></textarea>
++    <button data-submit="${e(a.id)}">Сдать на проверку</button>
++    <div class="daily-feedback" data-fb="${e(a.id)}"></div>
++  </div>`;
++}
++
++function doneHtml(a) {
++  const e = escapeHtml;
++  return `<div class="word-card">
++    <div class="word-main">${a.ok ? '✅' : '☑️'} ${e(a.text)}</div>
++    ${a.answer ? `<div class="word-ex">Твой ответ: ${e(a.answer)}</div>` : ''}
++    ${a.feedback ? `<div class="word-ex">${e(a.feedback)}</div>` : ''}
++  </div>`;
++}
++
++async function newAssignment(container) {
++  if (busy) return;
++  busy = true;
++  const topicEl = container.querySelector('#asg-topic');
++  const topic = topicEl ? topicEl.value.trim() : '';
++  const status = container.querySelector('#asg-status');
++  if (status) status.textContent = 'Готовлю задание…';
++  try {
++    const profile = await buildProfile();
++    const a = await generateAssignment(profile, topic);
++    const list = await getAssignments();
++    list.push({ id: `a${Date.now()}`, text: a.text || '', topic: a.topic || topic || '', status: 'open', createdAt: Date.now() });
++    await saveAssignments(list);
++    if (!container.querySelector('#asg-list')) return;
++    render(container);
++  } catch (err) {
++    const s = container.querySelector('#asg-status');
++    if (s) s.textContent = err.message;
++  } finally {
++    busy = false;
++  }
++}
++
++async function submit(container, id) {
++  if (busy) return;
++  const fb = container.querySelector(`[data-fb="${id}"]`);
++  const ta = container.querySelector(`[data-answer="${id}"]`);
++  const answer = ta ? ta.value.trim() : '';
++  if (!answer) { if (fb) fb.textContent = 'Напиши ответ.'; return; }
++  busy = true;
++  if (fb) fb.textContent = 'Проверяю…';
++  try {
++    const list = await getAssignments();
++    const a = list.find((x) => x.id === id);
++    if (!a) return;
++    const r = await checkAssignment(a.text, answer);
++    a.status = 'done';
++    a.answer = answer;
++    a.feedback = r.feedback || '';
++    a.ok = !!r.ok;
++    a.doneAt = Date.now();
++    await saveAssignments(list);
++    if (!container.querySelector('#asg-list')) return;
++    render(container);
++  } catch (err) {
++    const box = container.querySelector(`[data-fb="${id}"]`);
++    if (box) box.textContent = err.message;
++  } finally {
++    busy = false;
++  }
++}
++
++async function render(container) {
++  container.innerHTML = '<h1>Задания</h1><p class="status" id="asg-loading">Загрузка…</p>';
++  const list = await getAssignments();
++  if (!container.querySelector('#asg-loading')) return;
++  const { open, done } = partitionAssignments(list);
++  container.innerHTML = `
++    <h1>Задания</h1>
++    <label>Тема (необязательно)<input id="asg-topic" type="text" placeholder="напр. заказ в баре"></label>
++    <button id="asg-new">📝 Получить задание</button>
++    <p id="asg-status" class="status"></p>
++    <div id="asg-list">
++      ${open.length ? `<h2>Текущие</h2>${open.map(openHtml).join('')}` : '<p class="status">Нет активных заданий. Нажми «Получить задание».</p>'}
++      ${done.length ? `<details class="tch-extra"><summary>Выполненные (${done.length})</summary>${done.slice().reverse().map(doneHtml).join('')}</details>` : ''}
++    </div>
++  `;
++  container.querySelector('#asg-new').onclick = () => newAssignment(container);
++  container.querySelectorAll('[data-submit]').forEach((b) => { b.onclick = () => submit(container, b.dataset.submit); });
++}
++
++registerFeature({ id: 'assignments', title: 'Задания', icon: '📝', order: 45, render });
+diff --git a/js/claude.js b/js/claude.js
+index ba984e0..a9e644e 100644
+--- a/js/claude.js
++++ b/js/claude.js
+@@ -1,13 +1,13 @@
+ import { getSetting } from './db.js';
+ import { extractJson, recentMessages } from './util.js';
+-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM } from './prompts.js';
++import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM } from './prompts.js';
+ 
+ export const DEFAULT_MODEL = 'claude-haiku-4-5';
+ const API_URL = 'https://api.anthropic.com/v1/messages';
+ 
+ export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
+   const apiKey = await getSetting('apiKey');
+   if (!apiKey) {
+     throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
+   }
+   const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
+@@ -137,10 +137,28 @@ export async function generateCourse(profile, goal) {
+ }
+ 
+ export async function chatReply(history, profile) {
+   const messages = recentMessages(history, 20);
+   return callClaude({
+     system: `${CHAT_TUTOR_SYSTEM}\nПрофиль ученика: ${JSON.stringify(profile)}`,
+     messages,
+     maxTokens: 700,
+   });
+ }
++
++export async function generateAssignment(profile, topic) {
++  const text = await callClaude({
++    system: ASSIGNMENT_GEN_SYSTEM,
++    messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\nТема (если задана): ${topic || '(на твой выбор по слабым местам)'}` }],
++    maxTokens: 400,
++  });
++  return extractJson(text);
++}
++
++export async function checkAssignment(task, answer) {
++  const text = await callClaude({
++    system: ASSIGNMENT_CHECK_SYSTEM,
++    messages: [{ role: 'user', content: `Задание: ${task}\nОтвет ученика: ${answer}` }],
++    maxTokens: 500,
++  });
++  return extractJson(text);
++}
+diff --git a/js/profile.js b/js/profile.js
+index 32fe6bb..7b5e911 100644
+--- a/js/profile.js
++++ b/js/profile.js
+@@ -57,10 +57,26 @@ export async function saveCourse(course) {
+ export async function markUnitDone(unitId, score) {
+   const course = await getSetting('course');
+   if (!course || !course.units) return;
+   const u = course.units.find((x) => x.id === unitId);
+   if (u) {
+     u.status = 'done';
+     u.score = score;
+     await setSetting('course', course);
+   }
+ }
++
++export function partitionAssignments(list) {
++  const arr = Array.isArray(list) ? list : [];
++  return {
++    open: arr.filter((a) => a.status !== 'done'),
++    done: arr.filter((a) => a.status === 'done'),
++  };
++}
++
++export async function getAssignments() {
++  return (await getSetting('assignments')) || [];
++}
++
++export async function saveAssignments(list) {
++  await setSetting('assignments', list);
++}
+diff --git a/js/prompts.js b/js/prompts.js
+index 45e7ca7..743cd90 100644
+--- a/js/prompts.js
++++ b/js/prompts.js
+@@ -91,10 +91,20 @@ export const COURSE_GEN_SYSTEM = `Ты — преподаватель испан
+ Верни СТРОГО один JSON-объект, без markdown:
+ {
+   "units": [
+     { "title": "короткое название юнита по-русски", "topic": "конкретная тема для урока: грамматика или бытовая ситуация" }
+   ]
+ }
+ Ровно 10–12 элементов в "units". Только валидный JSON.`;
+ 
+ export const CHAT_TUTOR_SYSTEM = `Ты — дружелюбный личный преподаватель испанского для русскоязычного ученика уровня A2–B1, живущего рядом с Бенидормом (Валенсийское сообщество).
+ Веди живой короткий диалог: отвечай по-русски, примеры давай на испанском. Объясняй просто, помогай разобраться, при необходимости задавай небольшое упражнение и проверяй ответ ученика. Если ученик пишет по-испански с ошибками — мягко поправь и покажи правильный вариант. Учитывай местный валенсийский/аликантийский узус. Не пиши длинных лекций — короткие, тёплые, полезные реплики.`;
++
++export const ASSIGNMENT_GEN_SYSTEM = `Ты — преподаватель испанского. Составь ОДНО короткое практичное домашнее задание для русскоязычного ученика A2–B1 из района Бенидорма: попроси написать, перевести или составить что-то на испанском по бытовой ситуации или по слабой теме ученика.
++Верни СТРОГО один JSON-объект, без markdown:
++{ "text": "формулировка задания по-русски — что именно сделать", "topic": "краткая тема по-русски" }
++Только валидный JSON.`;
++
++export const ASSIGNMENT_CHECK_SYSTEM = `Ты проверяешь домашнее задание по испанскому у ученика A2–B1. Тебе дают формулировку задания и ответ ученика. Оцени, дай короткий разбор по-русски и покажи правильный/улучшенный вариант на испанском.
++Верни СТРОГО один JSON-объект, без markdown:
++{ "ok": true|false, "feedback": "разбор по-русски + правильный вариант на испанском" }
++Только валидный JSON.`;
+diff --git a/sw.js b/sw.js
+index 36f58e7..098f453 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,19 +1,20 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v10';
++const CACHE = 'espanol-v11';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
+   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
+   './js/listening.js', './js/grammar.js',
++  './js/assignments.js',
+   './js/stats.js', './js/asr.js', './js/speech.js', './js/progress.js',
+   './js/daily.js',
+   './js/profile.js', './js/teacher.js',
+   './js/chat.js',
+   './js/merge.js', './js/sync.js',
+   './icons/icon-192.png', './icons/icon-512.png',
+ ];
+ 
+ self.addEventListener('install', (e) => {
+   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+diff --git a/test/profile.test.js b/test/profile.test.js
+index f5efde8..90c3fcb 100644
+--- a/test/profile.test.js
++++ b/test/profile.test.js
+@@ -27,10 +27,24 @@ test('nextUnit: первый невыполненный юнит', () => {
+ });
+ 
+ test('nextUnit: все выполнены → null', () => {
+   assert.equal(nextUnit([{ id: 'a', status: 'done' }]), null);
+ });
+ 
+ test('nextUnit: пусто/undefined → null', () => {
+   assert.equal(nextUnit([]), null);
+   assert.equal(nextUnit(undefined), null);
+ });
++
++import { partitionAssignments } from '../js/profile.js';
++
++test('partitionAssignments: делит на open/done', () => {
++  const list = [{ id: 1, status: 'open' }, { id: 2, status: 'done' }, { id: 3, status: 'open' }];
++  const { open, done } = partitionAssignments(list);
++  assert.deepEqual(open.map((a) => a.id), [1, 3]);
++  assert.deepEqual(done.map((a) => a.id), [2]);
++});
++
++test('partitionAssignments: пусто/undefined → пустые массивы', () => {
++  assert.deepEqual(partitionAssignments([]), { open: [], done: [] });
++  assert.deepEqual(partitionAssignments(undefined), { open: [], done: [] });
++});

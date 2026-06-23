@@ -39,7 +39,7 @@ async function newAssignment(container) {
     list.push({ id: `a${Date.now()}`, text: a.text || '', topic: a.topic || topic || '', status: 'open', createdAt: Date.now() });
     await saveAssignments(list);
     if (!container.querySelector('#asg-list')) return;
-    render(container);
+    await render(container);
   } catch (err) {
     const s = container.querySelector('#asg-status');
     if (s) s.textContent = err.message;
@@ -68,7 +68,7 @@ async function submit(container, id) {
     a.doneAt = Date.now();
     await saveAssignments(list);
     if (!container.querySelector('#asg-list')) return;
-    render(container);
+    await render(container);
   } catch (err) {
     const box = container.querySelector(`[data-fb="${id}"]`);
     if (box) box.textContent = err.message;
