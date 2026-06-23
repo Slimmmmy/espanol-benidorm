@@ -68,3 +68,8 @@ test('recentMessages: пустая история → []', () => {
   assert.deepEqual(recentMessages([], 10), []);
   assert.deepEqual(recentMessages(undefined, 10), []);
 });
+
+test('recentMessages: схлопывает подряд идущие одинаковые роли', () => {
+  const h = [{ role: 'user', content: 'a' }, { role: 'user', content: 'b' }, { role: 'assistant', content: 'c' }];
+  assert.deepEqual(recentMessages(h, 10), [{ role: 'user', content: 'b' }, { role: 'assistant', content: 'c' }]);
+});

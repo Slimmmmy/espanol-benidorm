@@ -61,5 +61,10 @@ export function recentMessages(history, max = 20) {
     .slice(-max)
     .map((m) => ({ role: m.role, content: m.content }));
   while (arr.length && arr[0].role !== 'user') arr.shift();
-  return arr;
+  const out = [];
+  for (const m of arr) {
+    if (out.length && out[out.length - 1].role === m.role) out[out.length - 1] = m;
+    else out.push(m);
+  }
+  return out;
 }

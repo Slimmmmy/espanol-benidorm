@@ -18,7 +18,8 @@ function bubblesHtml(history) {
 }
 
 function scrollBottom() {
-  window.scrollTo(0, document.body.scrollHeight);
+  const el = document.scrollingElement || document.documentElement;
+  el.scrollTop = el.scrollHeight;
 }
 
 function renderLog(container, history, typing) {
@@ -35,11 +36,13 @@ async function send(container) {
   if (!text) return;
   busy = true;
   input.value = '';
-  const history = await getHistory();
-  history.push({ role: 'user', content: text, ts: Date.now() });
-  await saveHistory(history);
-  renderLog(container, history, true);
+  input.focus();
+  let history = [];
   try {
+    history = await getHistory();
+    history.push({ role: 'user', content: text, ts: Date.now() });
+    await saveHistory(history);
+    renderLog(container, history, true);
     const profile = await buildProfile();
     const reply = await chatReply(history, profile);
     history.push({ role: 'assistant', content: reply, ts: Date.now() });
