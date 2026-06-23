@@ -41,3 +41,26 @@ export async function recordLesson(entry) {
 export async function getLessonHistory() {
   return (await getSetting('lessonHistory')) || [];
 }
+
+export function nextUnit(units) {
+  return (units || []).find((u) => u.status !== 'done') || null;
+}
+
+export async function getCourse() {
+  return (await getSetting('course')) || null;
+}
+
+export async function saveCourse(course) {
+  await setSetting('course', course);
+}
+
+export async function markUnitDone(unitId, score) {
+  const course = await getSetting('course');
+  if (!course || !course.units) return;
+  const u = course.units.find((x) => x.id === unitId);
+  if (u) {
+    u.status = 'done';
+    u.score = score;
+    await setSetting('course', course);
+  }
+}

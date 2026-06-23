@@ -201,3 +201,13 @@ button.ok { background: linear-gradient(135deg, #34d399, #10b981); color: #052e2
 .more-item:active { background: rgba(124, 108, 255, 0.14); }
 .more-item.active { background: rgba(124, 108, 255, 0.18); color: #fff; }
 .more-icon { font-size: 22px; width: 26px; text-align: center; }
+
+.course-list { margin: 12px 0; }
+.unit-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; margin: 6px 0;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+.unit-row.unit-next { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124,108,255,.25); }
+.unit-mark { width: 20px; text-align: center; }
+.unit-title { flex: 1; font-size: 15px; }
+.unit-score { color: var(--muted); font-size: 13px; }
+.tch-extra { margin-top: 14px; }
+.tch-extra summary { color: var(--muted); cursor: pointer; padding: 8px 0; }

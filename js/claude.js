@@ -1,6 +1,6 @@
 import { getSetting } from './db.js';
 import { extractJson } from './util.js';
-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM } from './prompts.js';
+import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM } from './prompts.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-4-5';
 const API_URL = 'https://api.anthropic.com/v1/messages';
@@ -123,6 +123,15 @@ export async function reviewLesson(lesson, answers) {
     system: LESSON_REVIEW_SYSTEM,
     messages: [{ role: 'user', content: `Тема: ${lesson.topic}\nУпражнения и ответы ученика: ${JSON.stringify(items)}` }],
     maxTokens: 900,
+  });
+  return extractJson(text);
+}
+
+export async function generateCourse(profile, goal) {
+  const text = await callClaude({
+    system: COURSE_GEN_SYSTEM,
+    messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\nЦель: ${goal}` }],
+    maxTokens: 1100,
   });
   return extractJson(text);
 }
