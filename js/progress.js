@@ -3,9 +3,9 @@ import { getStats } from './stats.js';
 import { escapeHtml } from './util.js';
 
 async function render(container) {
-  container.innerHTML = '<h1>Прогресс</h1><p class="status">Загрузка…</p>';
+  container.innerHTML = '<h1>Прогресс</h1><p class="status" id="prog-loading">Загрузка…</p>';
   const s = await getStats();
-  if (!container.isConnected) return;
+  if (!container.querySelector('#prog-loading')) return;
   const e = escapeHtml;
   const weakHtml = s.weak.length
     ? s.weak.map((w) => `<div class="word-local">📌 ${e(w.topic)} — ${w.count}</div>`).join('')
