@@ -34,11 +34,13 @@ function card(icon, title, sub, btn, hash, done) {
 
 async function render(container) {
   container.innerHTML = '<h1>Сегодня</h1><p class="status" id="td-loading">Загрузка…</p>';
-  const stats = await getStats();
+  const [stats, course, assignments, daily] = await Promise.all([
+    getStats(),
+    getCourse(),
+    getAssignments(),
+    getSetting(`daily-${dayKey(Date.now())}`),
+  ]);
   if (!container.querySelector('#td-loading')) return;
-  const course = await getCourse();
-  const assignments = await getAssignments();
-  const daily = await getSetting(`daily-${dayKey(Date.now())}`);
   const s = summarizeToday({ stats, course, assignments, daily });
 
   const dailyDone = s.dailyTotal > 0 && s.dailyAdded >= s.dailyTotal;
