@@ -55,3 +55,16 @@ export function similarity(a, b) {
   if (!x || !y) return 0;
   return 1 - levenshtein(x, y) / Math.max(x.length, y.length);
 }
+
+export function recentMessages(history, max = 20) {
+  const arr = (Array.isArray(history) ? history : [])
+    .slice(-max)
+    .map((m) => ({ role: m.role, content: m.content }));
+  while (arr.length && arr[0].role !== 'user') arr.shift();
+  const out = [];
+  for (const m of arr) {
+    if (out.length && out[out.length - 1].role === m.role) out[out.length - 1] = m;
+    else out.push(m);
+  }
+  return out;
+}

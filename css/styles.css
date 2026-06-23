@@ -211,3 +211,15 @@ button.ok { background: linear-gradient(135deg, #34d399, #10b981); color: #052e2
 .unit-score { color: var(--muted); font-size: 13px; }
 .tch-extra { margin-top: 14px; }
 .tch-extra summary { color: var(--muted); cursor: pointer; padding: 8px 0; }
+
+.chat-log { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
+.chat-msg { max-width: 82%; padding: 10px 13px; border-radius: 16px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+.chat-me { align-self: flex-end; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border-bottom-right-radius: 5px; }
+.chat-bot { align-self: flex-start; background: var(--card-2); border: 1px solid var(--border); border-bottom-left-radius: 5px; }
+.chat-typing { opacity: .6; }
+.chat-bar {
+  position: sticky; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 6px);
+  display: flex; gap: 8px; align-items: center; background: var(--bg); padding: 8px 0;
+}
+.chat-bar input { margin-top: 0; }
+.chat-bar button { margin: 0; padding: 12px 16px; flex-shrink: 0; }
