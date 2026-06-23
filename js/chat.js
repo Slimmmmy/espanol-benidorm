@@ -2,6 +2,7 @@ import { registerFeature } from './app.js';
 import { getSetting, setSetting } from './db.js';
 import { buildProfile } from './profile.js';
 import { chatReply } from './claude.js';
+import { autoSync } from './sync.js';
 import { escapeHtml } from './util.js';
 
 let busy = false;
@@ -47,6 +48,7 @@ async function send(container) {
     const reply = await chatReply(history, profile);
     history.push({ role: 'assistant', content: reply, ts: Date.now() });
     await saveHistory(history);
+    autoSync(); // тихо отправить новую переписку в облако (если синхронизация настроена)
     if (!container.querySelector('#chat-log')) return;
     renderLog(container, history, false);
   } catch (err) {
