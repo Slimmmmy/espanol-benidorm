@@ -1,6 +1,6 @@
 import { getSetting } from './db.js';
 import { extractJson, recentMessages } from './util.js';
-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM } from './prompts.js';
+import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM } from './prompts.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-4-5';
 const API_URL = 'https://api.anthropic.com/v1/messages';
@@ -143,4 +143,22 @@ export async function chatReply(history, profile) {
     messages,
     maxTokens: 700,
   });
+}
+
+export async function generateAssignment(profile, topic) {
+  const text = await callClaude({
+    system: ASSIGNMENT_GEN_SYSTEM,
+    messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\nТема (если задана): ${topic || '(на твой выбор по слабым местам)'}` }],
+    maxTokens: 400,
+  });
+  return extractJson(text);
+}
+
+export async function checkAssignment(task, answer) {
+  const text = await callClaude({
+    system: ASSIGNMENT_CHECK_SYSTEM,
+    messages: [{ role: 'user', content: `Задание: ${task}\nОтвет ученика: ${answer}` }],
+    maxTokens: 500,
+  });
+  return extractJson(text);
 }
