@@ -1,8 +1,7 @@
-# Plan 10 — Assignments: progress ledger
+# Plan 11 — Today dashboard: progress ledger
 
-Branch: plan-10-assignments
-BASE: e09dac6
+Branch: plan-11-today
+BASE: a00f197
 
-- [x] Tasks 1-2 (83c917a..ab07c17)
-- [x] Tasks 3-4 (1123325..680780b)
-- [x] Final whole-branch review (APPROVED; applied await render)
+- [x] Tasks 1-2 (4d226a0..fa05a01)
+- [x] Final whole-branch review (clean after Promise.all guard fix)
