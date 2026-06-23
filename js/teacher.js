@@ -108,11 +108,11 @@ async function startLesson(container, topic, unitId) {
   }
 }
 
-async function buildCourse(container) {
+async function buildCourse(container, goalOverride) {
   if (busy) return;
   busy = true;
   const goalEl = container.querySelector('#tch-goal');
-  const goal = (goalEl && goalEl.value.trim()) || DEFAULT_GOAL;
+  const goal = goalOverride || (goalEl && goalEl.value.trim()) || DEFAULT_GOAL;
   const status = container.querySelector('#tch-status');
   if (status) status.textContent = 'Составляю программу под тебя…';
   try {
@@ -137,6 +137,7 @@ async function render(container) {
   const profile = await buildProfile();
   if (!container.querySelector('#tch-loading')) return;
   const course = await getCourse();
+  if (!container.querySelector('#tch-loading')) return;
   const e = escapeHtml;
 
   if (course && course.units && course.units.length) {
@@ -171,9 +172,10 @@ async function render(container) {
     }
     container.querySelector('#tch-free').onclick = () => {
       const t = container.querySelector('#tch-topic').value.trim();
-      if (t) startLesson(container, t, null);
+      if (t) { startLesson(container, t, null); }
+      else { const s = container.querySelector('#tch-status'); if (s) s.textContent = 'Введи тему урока'; }
     };
-    container.querySelector('#tch-rebuild').onclick = () => buildCourse(container);
+    container.querySelector('#tch-rebuild').onclick = () => buildCourse(container, course.goal);
   } else {
     container.innerHTML = `<h1>Учитель</h1>${profileCard(profile, e)}
       <div class="study-card"><div class="word-ex">У тебя ещё нет программы. Составлю персональный курс под твой уровень и цель.</div></div>
@@ -187,7 +189,8 @@ async function render(container) {
     container.querySelector('#tch-build').onclick = () => buildCourse(container);
     container.querySelector('#tch-free').onclick = () => {
       const t = container.querySelector('#tch-topic').value.trim();
-      if (t) startLesson(container, t, null);
+      if (t) { startLesson(container, t, null); }
+      else { const s = container.querySelector('#tch-status'); if (s) s.textContent = 'Введи тему урока'; }
     };
   }
 }
