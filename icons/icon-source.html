@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    html, body { margin: 0; padding: 0; }
+    .icon {
+      width: 512px; height: 512px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #7c6cff 0%, #b06cff 60%, #d36cff 100%);
+      font-family: -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif;
+      position: relative; overflow: hidden;
+    }
+    .icon::after {
+      content: ""; position: absolute; inset: 0;
+      background: radial-gradient(420px 300px at 50% -10%, rgba(255,255,255,.28), rgba(255,255,255,0));
+    }
+    .glyph {
+      position: relative; z-index: 1;
+      font-size: 320px; font-weight: 800; color: #fff; line-height: 1;
+      text-shadow: 0 14px 44px rgba(20,8,60,.35);
+    }
+  </style>
+</head>
+<body>
+  <div class="icon"><span class="glyph">ñ</span></div>
+</body>
+</html>
