@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, extractJson, normalizeText, similarity } from '../js/util.js';
+import { escapeHtml, extractJson, normalizeText, similarity, recentMessages } from '../js/util.js';
 
 test('escapeHtml экранирует спецсимволы', () => {
   assert.equal(escapeHtml('<b>"x"</b>'), '&lt;b&gt;&quot;x&quot;&lt;/b&gt;');
@@ -47,4 +47,24 @@ test('similarity: обе пустые = 1, одна пустая = 0', () => {
 
 test('similarity: близкое произношение → высокое', () => {
   assert.ok(similarity('el perro', 'el pero') > 0.8);
+});
+
+test('recentMessages: берёт последние max и только role/content', () => {
+  const h = [];
+  for (let i = 0; i < 25; i++) h.push({ role: i % 2 ? 'assistant' : 'user', content: 'm' + i, ts: i });
+  const out = recentMessages(h, 10);
+  assert.equal(out.length <= 10, true);
+  assert.deepEqual(Object.keys(out[0]).sort(), ['content', 'role']);
+});
+
+test('recentMessages: первый элемент всегда user', () => {
+  const h = [{ role: 'assistant', content: 'a' }, { role: 'user', content: 'b' }, { role: 'assistant', content: 'c' }];
+  const out = recentMessages(h, 10);
+  assert.equal(out[0].role, 'user');
+  assert.equal(out[0].content, 'b');
+});
+
+test('recentMessages: пустая история → []', () => {
+  assert.deepEqual(recentMessages([], 10), []);
+  assert.deepEqual(recentMessages(undefined, 10), []);
 });
