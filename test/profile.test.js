@@ -34,3 +34,17 @@ test('nextUnit: пусто/undefined → null', () => {
   assert.equal(nextUnit([]), null);
   assert.equal(nextUnit(undefined), null);
 });
+
+import { partitionAssignments } from '../js/profile.js';
+
+test('partitionAssignments: делит на open/done', () => {
+  const list = [{ id: 1, status: 'open' }, { id: 2, status: 'done' }, { id: 3, status: 'open' }];
+  const { open, done } = partitionAssignments(list);
+  assert.deepEqual(open.map((a) => a.id), [1, 3]);
+  assert.deepEqual(done.map((a) => a.id), [2]);
+});
+
+test('partitionAssignments: пусто/undefined → пустые массивы', () => {
+  assert.deepEqual(partitionAssignments([]), { open: [], done: [] });
+  assert.deepEqual(partitionAssignments(undefined), { open: [], done: [] });
+});
