@@ -48,11 +48,46 @@ function mergeLessonHistory(a, b) {
 
 function addedCount(set) { return ((set && set.words) || []).filter((w) => w.added).length; }
 
+// Чат: объединяем сообщения с обоих устройств (дедуп по ts|role|content), сортируем по времени.
+function mergeChatHistory(a, b) {
+  const map = new Map();
+  for (const m of [...(a || []), ...(b || [])]) {
+    const k = `${m.ts || 0}|${m.role}|${m.content}`;
+    if (!map.has(k)) map.set(k, m);
+  }
+  return [...map.values()].sort((x, y) => (x.ts || 0) - (y.ts || 0)).slice(-80);
+}
+
+// Задания: объединяем по id; при конфликте берём выполненное (в нём проверка/разбор), иначе позже обновлённое.
+function mergeAssignments(a, b) {
+  const map = new Map();
+  for (const t of [...(a || []), ...(b || [])]) {
+    const prev = map.get(t.id);
+    if (!prev) { map.set(t.id, t); continue; }
+    if (t.status === 'done' && prev.status !== 'done') map.set(t.id, t);
+    else if (t.status === 'done' && prev.status === 'done') {
+      if ((t.doneAt || 0) > (prev.doneAt || 0)) map.set(t.id, t);
+    }
+  }
+  return [...map.values()].sort((x, y) => (x.createdAt || 0) - (y.createdAt || 0));
+}
+
+// Курс: берём версию с большим числом пройденных юнитов (чтобы не терять прогресс).
+function doneUnits(c) { return ((c && c.units) || []).filter((u) => u.status === 'done').length; }
+function mergeCourse(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return doneUnits(a) >= doneUnits(b) ? a : b;
+}
+
 export function mergeSettings(a, b) {
   const A = a || {}, B = b || {};
   const out = { ...B, ...A };
   out.studyDays = mergeStudyDays(A.studyDays, B.studyDays);
   out.lessonHistory = mergeLessonHistory(A.lessonHistory, B.lessonHistory);
+  if (A.chatHistory || B.chatHistory) out.chatHistory = mergeChatHistory(A.chatHistory, B.chatHistory);
+  if (A.assignments || B.assignments) out.assignments = mergeAssignments(A.assignments, B.assignments);
+  if (A.course || B.course) out.course = mergeCourse(A.course, B.course);
   const ta = A.teacherProfile, tb = B.teacherProfile;
   if (ta || tb) {
     out.teacherProfile = ((ta && ta.updatedAt) || 0) >= ((tb && tb.updatedAt) || 0) ? (ta || tb) : (tb || ta);
