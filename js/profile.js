@@ -64,3 +64,19 @@ export async function markUnitDone(unitId, score) {
     await setSetting('course', course);
   }
 }
+
+export function partitionAssignments(list) {
+  const arr = Array.isArray(list) ? list : [];
+  return {
+    open: arr.filter((a) => a.status !== 'done'),
+    done: arr.filter((a) => a.status === 'done'),
+  };
+}
+
+export async function getAssignments() {
+  return (await getSetting('assignments')) || [];
+}
+
+export async function saveAssignments(list) {
+  await setSetting('assignments', list);
+}
