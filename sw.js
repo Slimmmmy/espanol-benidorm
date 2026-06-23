@@ -1,5 +1,5 @@
 // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
-const CACHE = 'espanol-v12';
+const CACHE = 'espanol-v13';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './sw.js',
@@ -13,7 +13,7 @@ const SHELL = [
   './js/profile.js', './js/teacher.js', './js/today.js',
   './js/chat.js',
   './js/merge.js', './js/sync.js',
-  './icons/icon-192.png', './icons/icon-512.png',
+  './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
 self.addEventListener('install', (e) => {
