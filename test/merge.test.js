@@ -70,3 +70,11 @@ test('mergeSettings: course берёт версию с большим прогр
   const b = { course: { units: [{ status: 'todo' }, { status: 'todo' }] } };
   assert.equal(mergeSettings(a, b).course, a.course);
 });
+
+test('mergeSettings: tutorMemory объединяется без дублей', () => {
+  const a = { tutorMemory: ['Зовут Ник', 'Друг Иван'] };
+  const b = { tutorMemory: ['друг иван', 'Цель: разговорный'] };
+  const out = mergeSettings(a, b).tutorMemory;
+  assert.equal(out.length, 3);
+  assert.ok(out.includes('Цель: разговорный'));
+});
