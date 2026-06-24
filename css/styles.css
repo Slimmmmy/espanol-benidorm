@@ -229,3 +229,8 @@ button.ok { background: linear-gradient(135deg, #34d399, #10b981); color: #052e2
 .td-text { flex: 1; min-width: 0; }
 .td-card button { margin: 0; flex-shrink: 0; }
 .td-done { opacity: .65; }
+
+#chat-mic { margin: 0; padding: 12px 14px; flex-shrink: 0; background: var(--card-2); border: 1px solid var(--border); }
+#chat-mic:disabled { opacity: .5; }
+.chat-bar input { flex: 1; min-width: 0; }
+.chat-say { margin: 0 0 0 8px; padding: 2px 7px; font-size: 13px; background: transparent; border: 1px solid var(--border); border-radius: 8px; vertical-align: middle; }
