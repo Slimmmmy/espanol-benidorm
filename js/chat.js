@@ -1,9 +1,10 @@
 import { registerFeature } from './app.js';
 import { getSetting, setSetting } from './db.js';
 import { buildProfile } from './profile.js';
-import { chatReply } from './claude.js';
+import { chatReply, extractMemory } from './claude.js';
 import { autoSync } from './sync.js';
 import { escapeHtml } from './util.js';
+import { getMemory, saveMemory } from './profile.js';
 
 let busy = false;
 
@@ -30,6 +31,17 @@ function renderLog(container, history, typing) {
   scrollBottom();
 }
 
+async function refreshMemory(userMsg, assistantMsg) {
+  try {
+    const existing = await getMemory();
+    const r = await extractMemory(existing, userMsg, assistantMsg);
+    if (r && Array.isArray(r.notes)) {
+      await saveMemory(r.notes);
+      autoSync();
+    }
+  } catch (e) { /* тихо: память — необязательная функция */ }
+}
+
 async function send(container) {
   if (busy) return;
   const input = container.querySelector('#chat-input');
@@ -49,6 +61,7 @@ async function send(container) {
     history.push({ role: 'assistant', content: reply, ts: Date.now() });
     await saveHistory(history);
     autoSync(); // тихо отправить новую переписку в облако (если синхронизация настроена)
+    refreshMemory(text, reply);
     if (!container.querySelector('#chat-log')) return;
     renderLog(container, history, false);
   } catch (err) {
