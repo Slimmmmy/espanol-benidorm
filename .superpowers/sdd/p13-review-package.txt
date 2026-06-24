@@ -1,0 +1,260 @@
+# Review package: plan-13-voice-chat (cebd4ba..HEAD)
+
+## Commits
+a81c848 feat: chat voice/speaker styles, cache v16
+4b2228a feat: voice input (es-ES) and reply playback in tutor chat
+57fe7a4 feat: voice coaching hint for spoken chat messages
+
+## Stat
+ css/styles.css |  5 +++++
+ js/chat.js     | 45 ++++++++++++++++++++++++++++++++++++++++-----
+ js/claude.js   | 12 +++++-------
+ js/prompts.js  |  2 ++
+ sw.js          |  2 +-
+ 5 files changed, 53 insertions(+), 13 deletions(-)
+
+## Full diff
+diff --git a/css/styles.css b/css/styles.css
+index 553e34b..a3cdddb 100644
+--- a/css/styles.css
++++ b/css/styles.css
+@@ -222,10 +222,15 @@ button.ok { background: linear-gradient(135deg, #34d399, #10b981); color: #052e2
+   display: flex; gap: 8px; align-items: center; background: var(--bg); padding: 8px 0;
+ }
+ .chat-bar input { margin-top: 0; }
+ .chat-bar button { margin: 0; padding: 12px 16px; flex-shrink: 0; }
+ 
+ .td-card .td-row { display: flex; align-items: center; gap: 12px; }
+ .td-icon { font-size: 26px; }
+ .td-text { flex: 1; min-width: 0; }
+ .td-card button { margin: 0; flex-shrink: 0; }
+ .td-done { opacity: .65; }
++
++#chat-mic { margin: 0; padding: 12px 14px; flex-shrink: 0; background: var(--card-2); border: 1px solid var(--border); }
++#chat-mic:disabled { opacity: .5; }
++.chat-bar input { flex: 1; min-width: 0; }
++.chat-say { margin: 0 0 0 8px; padding: 2px 7px; font-size: 13px; background: transparent; border: 1px solid var(--border); border-radius: 8px; vertical-align: middle; }
+diff --git a/js/chat.js b/js/chat.js
+index fe84b1f..8dcdffb 100644
+--- a/js/chat.js
++++ b/js/chat.js
+@@ -1,93 +1,128 @@
+ import { registerFeature } from './app.js';
+ import { getSetting, setSetting } from './db.js';
+ import { buildProfile, getMemory, saveMemory } from './profile.js';
+ import { chatReply, extractMemory } from './claude.js';
+ import { autoSync } from './sync.js';
+ import { escapeHtml } from './util.js';
++import { recognizeOnce } from './asr.js';
++import { speak } from './tts.js';
+ 
+ let busy = false;
+ 
+ async function getHistory() { return (await getSetting('chatHistory')) || []; }
+ async function saveHistory(h) { await setSetting('chatHistory', h.slice(-60)); }
+ 
+ function bubblesHtml(history) {
+   const e = escapeHtml;
+   if (!history.length) {
+-    return '<p class="status">Привет! Я твой наставник по испанскому. Спроси что угодно — объясню, помогу, потренирую. Можешь писать по-русски или по-испански.</p>';
++    return '<p class="status">Привет! Я твой наставник по испанскому. Спроси что угодно — объясню, помогу, потренирую. Можешь писать или говорить (🎤) по-испански.</p>';
+   }
+-  return history.map((m) => `<div class="chat-msg chat-${m.role === 'user' ? 'me' : 'bot'}">${e(m.content)}</div>`).join('');
++  return history.map((m, i) => {
++    if (m.role === 'user') {
++      return `<div class="chat-msg chat-me">${m.voice ? '🎤 ' : ''}${e(m.content)}</div>`;
++    }
++    return `<div class="chat-msg chat-bot">${e(m.content)}<button class="chat-say" data-say="${i}" title="Озвучить">🔊</button></div>`;
++  }).join('');
+ }
+ 
+ function scrollBottom() {
+   const el = document.scrollingElement || document.documentElement;
+   el.scrollTop = el.scrollHeight;
+ }
+ 
+ function renderLog(container, history, typing) {
+   const log = container.querySelector('#chat-log');
+   if (!log) return;
+   log.innerHTML = bubblesHtml(history) + (typing ? '<div class="chat-msg chat-bot chat-typing">…</div>' : '');
++  log.querySelectorAll('[data-say]').forEach((b) => {
++    b.onclick = () => { const m = history[Number(b.dataset.say)]; if (m) speak(m.content); };
++  });
+   scrollBottom();
+ }
+ 
+ async function refreshMemory(userMsg, assistantMsg) {
+   try {
+     const existing = await getMemory();
+     const r = await extractMemory(existing, userMsg, assistantMsg);
+     if (r && Array.isArray(r.notes)) {
+       await saveMemory(r.notes);
+       autoSync();
+     }
+   } catch (e) { /* тихо: память — необязательная функция */ }
+ }
+ 
+-async function send(container) {
++async function voiceInput(container) {
++  if (busy) return;
++  const mic = container.querySelector('#chat-mic');
++  const input = container.querySelector('#chat-input');
++  if (mic) mic.disabled = true;
++  const prevPh = input ? input.placeholder : '';
++  if (input) input.placeholder = '🎤 Говори по-испански…';
++  try {
++    const heard = await recognizeOnce('es-ES');
++    if (input) { input.value = heard; input.placeholder = prevPh; }
++    if (mic) mic.disabled = false;
++    await send(container, { voice: true });
++  } catch (err) {
++    if (input) input.placeholder = prevPh;
++    if (mic) mic.disabled = false;
++    const log = container.querySelector('#chat-log');
++    if (log) {
++      const h = await getHistory();
++      renderLog(container, h.concat([{ role: 'assistant', content: '⚠️ ' + err.message, ts: Date.now() }]), false);
++    }
++  }
++}
++
++async function send(container, opts = {}) {
+   if (busy) return;
+   const input = container.querySelector('#chat-input');
+   const text = input.value.trim();
+   if (!text) return;
+   busy = true;
+   input.value = '';
+   input.focus();
+   let history = [];
+   try {
+     history = await getHistory();
+-    history.push({ role: 'user', content: text, ts: Date.now() });
++    history.push({ role: 'user', content: text, ts: Date.now(), ...(opts.voice ? { voice: true } : {}) });
+     await saveHistory(history);
+     renderLog(container, history, true);
+     const profile = await buildProfile();
+-    const reply = await chatReply(history, profile);
++    const reply = await chatReply(history, profile, opts);
+     history.push({ role: 'assistant', content: reply, ts: Date.now() });
+     await saveHistory(history);
+     autoSync(); // тихо отправить новую переписку в облако (если синхронизация настроена)
+     refreshMemory(text, reply);
+     if (!container.querySelector('#chat-log')) return;
+     renderLog(container, history, false);
+   } catch (err) {
+     if (container.querySelector('#chat-log')) {
+       renderLog(container, history.concat([{ role: 'assistant', content: '⚠️ ' + err.message, ts: Date.now() }]), false);
+     }
+   } finally {
+     busy = false;
+   }
+ }
+ 
+ async function render(container) {
+   container.innerHTML = `
+     <h1>Наставник</h1>
+     <div id="chat-log" class="chat-log"></div>
+     <div class="chat-bar">
++      <button id="chat-mic" title="Сказать по-испански">🎤</button>
+       <input id="chat-input" type="text" placeholder="Спроси наставника…" autocapitalize="sentences">
+       <button id="chat-send">➤</button>
+     </div>
+   `;
+   const history = await getHistory();
+   if (!container.querySelector('#chat-log')) return;
+   renderLog(container, history, false);
+   container.querySelector('#chat-send').onclick = () => send(container);
+   container.querySelector('#chat-input').addEventListener('keydown', (ev) => {
+     if (ev.key === 'Enter') { ev.preventDefault(); send(container); }
+   });
++  container.querySelector('#chat-mic').onclick = () => voiceInput(container);
+ }
+ 
+ registerFeature({ id: 'chat', title: 'Чат', icon: '💬', order: 6, render });
+diff --git a/js/claude.js b/js/claude.js
+index 0b87ce4..5eac59a 100644
+--- a/js/claude.js
++++ b/js/claude.js
+@@ -1,13 +1,13 @@
+ import { getSetting } from './db.js';
+ import { extractJson, recentMessages } from './util.js';
+-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM } from './prompts.js';
++import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT } from './prompts.js';
+ 
+ export const DEFAULT_MODEL = 'claude-haiku-4-5';
+ const API_URL = 'https://api.anthropic.com/v1/messages';
+ 
+ export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
+   const apiKey = await getSetting('apiKey');
+   if (!apiKey) {
+     throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
+   }
+   const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
+@@ -129,27 +129,25 @@ export async function reviewLesson(lesson, answers) {
+ 
+ export async function generateCourse(profile, goal) {
+   const text = await callClaude({
+     system: COURSE_GEN_SYSTEM,
+     messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\nЦель: ${goal}` }],
+     maxTokens: 1100,
+   });
+   return extractJson(text);
+ }
+ 
+-export async function chatReply(history, profile) {
++export async function chatReply(history, profile, opts = {}) {
+   const messages = recentMessages(history, 20);
+-  return callClaude({
+-    system: `${CHAT_TUTOR_SYSTEM}\nПрофиль ученика: ${JSON.stringify(profile)}`,
+-    messages,
+-    maxTokens: 700,
+-  });
++  let system = `${CHAT_TUTOR_SYSTEM}\nПрофиль ученика: ${JSON.stringify(profile)}`;
++  if (opts && opts.voice) system += `\n${VOICE_COACH_HINT}`;
++  return callClaude({ system, messages, maxTokens: 700 });
+ }
+ 
+ export async function generateAssignment(profile, topic) {
+   const text = await callClaude({
+     system: ASSIGNMENT_GEN_SYSTEM,
+     messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\nТема (если задана): ${topic || '(на твой выбор по слабым местам)'}` }],
+     maxTokens: 400,
+   });
+   return extractJson(text);
+ }
+diff --git a/js/prompts.js b/js/prompts.js
+index 5e685df..038b1b6 100644
+--- a/js/prompts.js
++++ b/js/prompts.js
+@@ -105,10 +105,12 @@ export const ASSIGNMENT_GEN_SYSTEM = `Ты — преподаватель исп
+ { "text": "формулировка задания по-русски — что именно сделать", "topic": "краткая тема по-русски" }
+ Только валидный JSON.`;
+ 
+ export const ASSIGNMENT_CHECK_SYSTEM = `Ты проверяешь домашнее задание по испанскому у ученика A2–B1. Тебе дают формулировку задания и ответ ученика. Оцени, дай короткий разбор по-русски и покажи правильный/улучшенный вариант на испанском.
+ Верни СТРОГО один JSON-объект, без markdown:
+ { "ok": true|false, "feedback": "разбор по-русски + правильный вариант на испанском" }
+ Только валидный JSON.`;
+ 
+ export const MEMORY_EXTRACT_SYSTEM = `Ты ведёшь заметки об ученике испанского, чтобы преподаватель помнил важные факты. Тебе дают текущие заметки и последнюю пару реплик (ученик и преподаватель). Обнови список устойчивых ФАКТОВ об ученике: имя, имена друзей и семьи, работа, цель изучения, предпочтения, что даётся трудно. Не записывай сиюминутное, вопросы и упражнения. Сохрани прежние актуальные факты.
+ Верни СТРОГО один JSON-объект, без markdown: { "notes": ["короткий факт по-русски", ...] }. Без дублей, максимум 30 фактов. Только валидный JSON.`;
++
++export const VOICE_COACH_HINT = `Последнее сообщение ученик произнёс ВСЛУХ по-испански (текст получен распознаванием речи, поэтому возможны неточности). Сначала кратко разбери произношение: на какие звуки и ударения обратить внимание, типичные ошибки русскоязычных; покажи, КАК сказать правильно (по слогам, с ударением). Затем коротко ответь по сути сказанного. Будь краток и доброжелателен.`;
+diff --git a/sw.js b/sw.js
+index 37be4c4..f795121 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,12 +1,12 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v15';
++const CACHE = 'espanol-v16';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
+   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
+   './js/listening.js', './js/grammar.js',
+   './js/assignments.js',
+   './js/stats.js', './js/asr.js', './js/speech.js', './js/progress.js',
+   './js/daily.js',

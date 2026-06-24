@@ -21,7 +21,7 @@ function bubblesHtml(history) {
     if (m.role === 'user') {
       return `<div class="chat-msg chat-me">${m.voice ? '🎤 ' : ''}${e(m.content)}</div>`;
     }
-    return `<div class="chat-msg chat-bot">${e(m.content)}<button class="chat-say" data-say="${i}" title="Озвучить">🔊</button></div>`;
+    return `<div class="chat-msg chat-bot">${e(m.content)}${m.noSpeak ? '' : `<button class="chat-say" data-say="${i}" title="Озвучить">🔊</button>`}</div>`;
   }).join('');
 }
 
@@ -69,7 +69,7 @@ async function voiceInput(container) {
     const log = container.querySelector('#chat-log');
     if (log) {
       const h = await getHistory();
-      renderLog(container, h.concat([{ role: 'assistant', content: '⚠️ ' + err.message, ts: Date.now() }]), false);
+      renderLog(container, h.concat([{ role: 'assistant', content: '⚠️ ' + err.message, ts: Date.now(), noSpeak: true }]), false);
     }
   }
 }
@@ -98,7 +98,7 @@ async function send(container, opts = {}) {
     renderLog(container, history, false);
   } catch (err) {
     if (container.querySelector('#chat-log')) {
-      renderLog(container, history.concat([{ role: 'assistant', content: '⚠️ ' + err.message, ts: Date.now() }]), false);
+      renderLog(container, history.concat([{ role: 'assistant', content: '⚠️ ' + err.message, ts: Date.now(), noSpeak: true }]), false);
     }
   } finally {
     busy = false;
