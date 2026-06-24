@@ -1,7 +1,8 @@
-# Plan 11 — Today dashboard: progress ledger
+# Plan 12 — Tutor memory: progress ledger
 
-Branch: plan-11-today
-BASE: a00f197
+Branch: plan-12-memory
+BASE: 8901eb6
 
-- [x] Tasks 1-2 (4d226a0..fa05a01)
-- [x] Final whole-branch review (clean after Promise.all guard fix)
+- [x] Tasks 1-3 (9a0c6cd..bb2fa9c)
+- [x] Tasks 4-6 (d4ad0b2..a55bba2)
+- [ ] Final whole-branch review

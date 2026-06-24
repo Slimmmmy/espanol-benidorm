@@ -80,6 +80,18 @@ function mergeCourse(a, b) {
   return doneUnits(a) >= doneUnits(b) ? a : b;
 }
 
+function mergeMemory(a, b) {
+  const seen = new Set();
+  const out = [];
+  for (const n of [...(a || []), ...(b || [])]) {
+    const k = String(n).trim();
+    if (!k || seen.has(k.toLowerCase())) continue;
+    seen.add(k.toLowerCase());
+    out.push(k);
+  }
+  return out.slice(-50);
+}
+
 export function mergeSettings(a, b) {
   const A = a || {}, B = b || {};
   const out = { ...B, ...A };
@@ -88,6 +100,7 @@ export function mergeSettings(a, b) {
   if (A.chatHistory || B.chatHistory) out.chatHistory = mergeChatHistory(A.chatHistory, B.chatHistory);
   if (A.assignments || B.assignments) out.assignments = mergeAssignments(A.assignments, B.assignments);
   if (A.course || B.course) out.course = mergeCourse(A.course, B.course);
+  if (A.tutorMemory || B.tutorMemory) out.tutorMemory = mergeMemory(A.tutorMemory, B.tutorMemory);
   const ta = A.teacherProfile, tb = B.teacherProfile;
   if (ta || tb) {
     out.teacherProfile = ((ta && ta.updatedAt) || 0) >= ((tb && tb.updatedAt) || 0) ? (ta || tb) : (tb || ta);

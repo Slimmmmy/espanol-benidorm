@@ -2,6 +2,7 @@ import { registerFeature } from './app.js';
 import { getSetting, setSetting } from './db.js';
 import { testConnection, DEFAULT_MODEL } from './claude.js';
 import { syncNow } from './sync.js';
+import { getMemory, saveMemory } from './profile.js';
 
 async function render(container) {
   const apiKey = (await getSetting('apiKey')) || '';
@@ -10,6 +11,7 @@ async function render(container) {
   const supabaseUrl = (await getSetting('supabaseUrl')) || '';
   const supabaseKey = (await getSetting('supabaseKey')) || '';
   const syncCode = (await getSetting('syncCode')) || '';
+  const memory = (await getMemory()).join('\n');
 
   container.innerHTML = `
     <h1>Настройки</h1>
@@ -42,6 +44,11 @@ async function render(container) {
       <input id="set-scode" type="text">
     </label>
     <button id="set-sync">Синхронизировать сейчас</button>
+    <h2>Память наставника</h2>
+    <label>Что наставник о тебе знает (по факту в строке)
+      <textarea id="set-memory" rows="6" placeholder="напр. Зовут Ник&#10;Друзья: Иван, Аня&#10;Цель: разговорный для жизни в Бенидорме"></textarea>
+    </label>
+    <button id="set-memclear" class="danger">Очистить память</button>
     <p id="set-status" class="status"></p>
   `;
   container.querySelector('#set-model').value = model;
@@ -50,6 +57,7 @@ async function render(container) {
   container.querySelector('#set-surl').value = supabaseUrl;
   container.querySelector('#set-skey').value = supabaseKey;
   container.querySelector('#set-scode').value = syncCode;
+  container.querySelector('#set-memory').value = memory;
 
   const status = container.querySelector('#set-status');
 
@@ -60,6 +68,7 @@ async function render(container) {
     await setSetting('supabaseUrl', container.querySelector('#set-surl').value.trim().replace(/\/+$/, ''));
     await setSetting('supabaseKey', container.querySelector('#set-skey').value.trim());
     await setSetting('syncCode', container.querySelector('#set-scode').value.trim());
+    await saveMemory(container.querySelector('#set-memory').value.split('\n').map((s) => s.trim()).filter(Boolean));
     status.textContent = 'Сохранено.';
   };
 
@@ -81,6 +90,12 @@ async function render(container) {
     } catch (e) {
       status.textContent = e.message;
     }
+  };
+
+  container.querySelector('#set-memclear').onclick = async () => {
+    await saveMemory([]);
+    container.querySelector('#set-memory').value = '';
+    status.textContent = 'Память наставника очищена.';
   };
 }
 

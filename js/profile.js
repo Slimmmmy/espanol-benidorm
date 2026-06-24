@@ -13,6 +13,7 @@ export async function buildProfile() {
   const level = (await getSetting('level')) || 'A2-B1';
   const tp = (await getSetting('teacherProfile')) || {};
   const history = (await getSetting('lessonHistory')) || [];
+  const memory = (await getSetting('tutorMemory')) || [];
   return {
     level,
     words: stats.words,
@@ -21,6 +22,7 @@ export async function buildProfile() {
     note: tp.note || '',
     lastTopic: tp.lastTopic || '',
     lessonsCompleted: history.length,
+    memory,
   };
 }
 
@@ -79,4 +81,12 @@ export async function getAssignments() {
 
 export async function saveAssignments(list) {
   await setSetting('assignments', list);
+}
+
+export async function getMemory() {
+  return (await getSetting('tutorMemory')) || [];
+}
+
+export async function saveMemory(list) {
+  await setSetting('tutorMemory', list);
 }
