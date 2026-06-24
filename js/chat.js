@@ -1,10 +1,9 @@
 import { registerFeature } from './app.js';
 import { getSetting, setSetting } from './db.js';
-import { buildProfile } from './profile.js';
+import { buildProfile, getMemory, saveMemory } from './profile.js';
 import { chatReply, extractMemory } from './claude.js';
 import { autoSync } from './sync.js';
 import { escapeHtml } from './util.js';
-import { getMemory, saveMemory } from './profile.js';
 
 let busy = false;
 

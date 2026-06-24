@@ -1,0 +1,390 @@
+# Review package: plan-12-memory (8901eb6..HEAD)
+
+## Commits
+a55bba2 chore: cache v15 for tutor memory
+90635ae feat: tutor memory viewer/editor in settings
+d4ad0b2 feat: auto-update tutor memory after each chat reply
+bb2fa9c feat: extractMemory to distill durable facts about the learner
+7d02038 feat: tutor memory storage and inclusion in buildProfile
+9a0c6cd feat: union tutorMemory in settings merge with test
+
+## Stat
+ js/chat.js         | 15 ++++++++++++++-
+ js/claude.js       | 11 ++++++++++-
+ js/merge.js        | 13 +++++++++++++
+ js/profile.js      | 10 ++++++++++
+ js/prompts.js      |  3 +++
+ js/settings.js     | 15 +++++++++++++++
+ sw.js              |  2 +-
+ test/merge.test.js |  8 ++++++++
+ 8 files changed, 74 insertions(+), 3 deletions(-)
+
+## Full diff
+diff --git a/js/chat.js b/js/chat.js
+index bd7d693..8e7e6cd 100644
+--- a/js/chat.js
++++ b/js/chat.js
+@@ -1,16 +1,17 @@
+ import { registerFeature } from './app.js';
+ import { getSetting, setSetting } from './db.js';
+ import { buildProfile } from './profile.js';
+-import { chatReply } from './claude.js';
++import { chatReply, extractMemory } from './claude.js';
+ import { autoSync } from './sync.js';
+ import { escapeHtml } from './util.js';
++import { getMemory, saveMemory } from './profile.js';
+ 
+ let busy = false;
+ 
+ async function getHistory() { return (await getSetting('chatHistory')) || []; }
+ async function saveHistory(h) { await setSetting('chatHistory', h.slice(-60)); }
+ 
+ function bubblesHtml(history) {
+   const e = escapeHtml;
+   if (!history.length) {
+     return '<p class="status">Привет! Я твой наставник по испанскому. Спроси что угодно — объясню, помогу, потренирую. Можешь писать по-русски или по-испански.</p>';
+@@ -23,39 +24,51 @@ function scrollBottom() {
+   el.scrollTop = el.scrollHeight;
+ }
+ 
+ function renderLog(container, history, typing) {
+   const log = container.querySelector('#chat-log');
+   if (!log) return;
+   log.innerHTML = bubblesHtml(history) + (typing ? '<div class="chat-msg chat-bot chat-typing">…</div>' : '');
+   scrollBottom();
+ }
+ 
++async function refreshMemory(userMsg, assistantMsg) {
++  try {
++    const existing = await getMemory();
++    const r = await extractMemory(existing, userMsg, assistantMsg);
++    if (r && Array.isArray(r.notes)) {
++      await saveMemory(r.notes);
++      autoSync();
++    }
++  } catch (e) { /* тихо: память — необязательная функция */ }
++}
++
+ async function send(container) {
+   if (busy) return;
+   const input = container.querySelector('#chat-input');
+   const text = input.value.trim();
+   if (!text) return;
+   busy = true;
+   input.value = '';
+   input.focus();
+   let history = [];
+   try {
+     history = await getHistory();
+     history.push({ role: 'user', content: text, ts: Date.now() });
+     await saveHistory(history);
+     renderLog(container, history, true);
+     const profile = await buildProfile();
+     const reply = await chatReply(history, profile);
+     history.push({ role: 'assistant', content: reply, ts: Date.now() });
+     await saveHistory(history);
+     autoSync(); // тихо отправить новую переписку в облако (если синхронизация настроена)
++    refreshMemory(text, reply);
+     if (!container.querySelector('#chat-log')) return;
+     renderLog(container, history, false);
+   } catch (err) {
+     if (container.querySelector('#chat-log')) {
+       renderLog(container, history.concat([{ role: 'assistant', content: '⚠️ ' + err.message, ts: Date.now() }]), false);
+     }
+   } finally {
+     busy = false;
+   }
+ }
+diff --git a/js/claude.js b/js/claude.js
+index a9e644e..0b87ce4 100644
+--- a/js/claude.js
++++ b/js/claude.js
+@@ -1,13 +1,13 @@
+ import { getSetting } from './db.js';
+ import { extractJson, recentMessages } from './util.js';
+-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM } from './prompts.js';
++import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM } from './prompts.js';
+ 
+ export const DEFAULT_MODEL = 'claude-haiku-4-5';
+ const API_URL = 'https://api.anthropic.com/v1/messages';
+ 
+ export async function callClaude({ system, messages, model, maxTokens = 1024 }) {
+   const apiKey = await getSetting('apiKey');
+   if (!apiKey) {
+     throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
+   }
+   const chosenModel = model || (await getSetting('model')) || DEFAULT_MODEL;
+@@ -155,10 +155,19 @@ export async function generateAssignment(profile, topic) {
+ }
+ 
+ export async function checkAssignment(task, answer) {
+   const text = await callClaude({
+     system: ASSIGNMENT_CHECK_SYSTEM,
+     messages: [{ role: 'user', content: `Задание: ${task}\nОтвет ученика: ${answer}` }],
+     maxTokens: 500,
+   });
+   return extractJson(text);
+ }
++
++export async function extractMemory(existingNotes, userMsg, assistantMsg) {
++  const text = await callClaude({
++    system: MEMORY_EXTRACT_SYSTEM,
++    messages: [{ role: 'user', content: `Текущие заметки: ${JSON.stringify(existingNotes || [])}\nУченик: ${userMsg || ''}\nПреподаватель: ${assistantMsg || ''}` }],
++    maxTokens: 400,
++  });
++  return extractJson(text);
++}
+diff --git a/js/merge.js b/js/merge.js
+index 867d8ca..6d605f5 100644
+--- a/js/merge.js
++++ b/js/merge.js
+@@ -73,28 +73,41 @@ function mergeAssignments(a, b) {
+ }
+ 
+ // Курс: берём версию с большим числом пройденных юнитов (чтобы не терять прогресс).
+ function doneUnits(c) { return ((c && c.units) || []).filter((u) => u.status === 'done').length; }
+ function mergeCourse(a, b) {
+   if (!a) return b;
+   if (!b) return a;
+   return doneUnits(a) >= doneUnits(b) ? a : b;
+ }
+ 
++function mergeMemory(a, b) {
++  const seen = new Set();
++  const out = [];
++  for (const n of [...(a || []), ...(b || [])]) {
++    const k = String(n).trim();
++    if (!k || seen.has(k.toLowerCase())) continue;
++    seen.add(k.toLowerCase());
++    out.push(k);
++  }
++  return out.slice(-50);
++}
++
+ export function mergeSettings(a, b) {
+   const A = a || {}, B = b || {};
+   const out = { ...B, ...A };
+   out.studyDays = mergeStudyDays(A.studyDays, B.studyDays);
+   out.lessonHistory = mergeLessonHistory(A.lessonHistory, B.lessonHistory);
+   if (A.chatHistory || B.chatHistory) out.chatHistory = mergeChatHistory(A.chatHistory, B.chatHistory);
+   if (A.assignments || B.assignments) out.assignments = mergeAssignments(A.assignments, B.assignments);
+   if (A.course || B.course) out.course = mergeCourse(A.course, B.course);
++  if (A.tutorMemory || B.tutorMemory) out.tutorMemory = mergeMemory(A.tutorMemory, B.tutorMemory);
+   const ta = A.teacherProfile, tb = B.teacherProfile;
+   if (ta || tb) {
+     out.teacherProfile = ((ta && ta.updatedAt) || 0) >= ((tb && tb.updatedAt) || 0) ? (ta || tb) : (tb || ta);
+   }
+   for (const key of new Set([...Object.keys(A), ...Object.keys(B)])) {
+     if (key.startsWith('daily-')) {
+       const da = A[key], db = B[key];
+       out[key] = (da && db) ? (addedCount(da) >= addedCount(db) ? da : db) : (da || db);
+     }
+   }
+diff --git a/js/profile.js b/js/profile.js
+index 7b5e911..1565990 100644
+--- a/js/profile.js
++++ b/js/profile.js
+@@ -6,28 +6,30 @@ export function pickNextTopic(weak, lastTopic) {
+   const sorted = [...weak].sort((a, b) => b.count - a.count);
+   const pick = sorted.find((w) => w.topic !== lastTopic) || sorted[0];
+   return pick.topic;
+ }
+ 
+ export async function buildProfile() {
+   const stats = await getStats();
+   const level = (await getSetting('level')) || 'A2-B1';
+   const tp = (await getSetting('teacherProfile')) || {};
+   const history = (await getSetting('lessonHistory')) || [];
++  const memory = (await getSetting('tutorMemory')) || [];
+   return {
+     level,
+     words: stats.words,
+     learned: stats.learned,
+     weak: stats.weak,
+     note: tp.note || '',
+     lastTopic: tp.lastTopic || '',
+     lessonsCompleted: history.length,
++    memory,
+   };
+ }
+ 
+ export async function saveProfileNote(note, lastTopic) {
+   const tp = (await getSetting('teacherProfile')) || {};
+   tp.note = note;
+   if (lastTopic !== undefined) tp.lastTopic = lastTopic;
+   tp.updatedAt = Date.now();
+   await setSetting('teacherProfile', tp);
+ }
+@@ -73,10 +75,18 @@ export function partitionAssignments(list) {
+   };
+ }
+ 
+ export async function getAssignments() {
+   return (await getSetting('assignments')) || [];
+ }
+ 
+ export async function saveAssignments(list) {
+   await setSetting('assignments', list);
+ }
++
++export async function getMemory() {
++  return (await getSetting('tutorMemory')) || [];
++}
++
++export async function saveMemory(list) {
++  await setSetting('tutorMemory', list);
++}
+diff --git a/js/prompts.js b/js/prompts.js
+index 743cd90..5d6b6af 100644
+--- a/js/prompts.js
++++ b/js/prompts.js
+@@ -101,10 +101,13 @@ export const CHAT_TUTOR_SYSTEM = `Ты — дружелюбный личный 
+ 
+ export const ASSIGNMENT_GEN_SYSTEM = `Ты — преподаватель испанского. Составь ОДНО короткое практичное домашнее задание для русскоязычного ученика A2–B1 из района Бенидорма: попроси написать, перевести или составить что-то на испанском по бытовой ситуации или по слабой теме ученика.
+ Верни СТРОГО один JSON-объект, без markdown:
+ { "text": "формулировка задания по-русски — что именно сделать", "topic": "краткая тема по-русски" }
+ Только валидный JSON.`;
+ 
+ export const ASSIGNMENT_CHECK_SYSTEM = `Ты проверяешь домашнее задание по испанскому у ученика A2–B1. Тебе дают формулировку задания и ответ ученика. Оцени, дай короткий разбор по-русски и покажи правильный/улучшенный вариант на испанском.
+ Верни СТРОГО один JSON-объект, без markdown:
+ { "ok": true|false, "feedback": "разбор по-русски + правильный вариант на испанском" }
+ Только валидный JSON.`;
++
++export const MEMORY_EXTRACT_SYSTEM = `Ты ведёшь заметки об ученике испанского, чтобы преподаватель помнил важные факты. Тебе дают текущие заметки и последнюю пару реплик (ученик и преподаватель). Обнови список устойчивых ФАКТОВ об ученике: имя, имена друзей и семьи, работа, цель изучения, предпочтения, что даётся трудно. Не записывай сиюминутное, вопросы и упражнения. Сохрани прежние актуальные факты.
++Верни СТРОГО один JSON-объект, без markdown: { "notes": ["короткий факт по-русски", ...] }. Без дублей, максимум 30 фактов. Только валидный JSON.`;
+diff --git a/js/settings.js b/js/settings.js
+index 0ba0878..63cc2d7 100644
+--- a/js/settings.js
++++ b/js/settings.js
+@@ -1,22 +1,24 @@
+ import { registerFeature } from './app.js';
+ import { getSetting, setSetting } from './db.js';
+ import { testConnection, DEFAULT_MODEL } from './claude.js';
+ import { syncNow } from './sync.js';
++import { getMemory, saveMemory } from './profile.js';
+ 
+ async function render(container) {
+   const apiKey = (await getSetting('apiKey')) || '';
+   const model = (await getSetting('model')) || DEFAULT_MODEL;
+   const level = (await getSetting('level')) || 'A2-B1';
+   const supabaseUrl = (await getSetting('supabaseUrl')) || '';
+   const supabaseKey = (await getSetting('supabaseKey')) || '';
+   const syncCode = (await getSetting('syncCode')) || '';
++  const memory = (await getMemory()).join('\n');
+ 
+   container.innerHTML = `
+     <h1>Настройки</h1>
+     <label>API-ключ Claude
+       <input id="set-key" type="password" placeholder="sk-ant-...">
+     </label>
+     <label>Модель
+       <select id="set-model">
+         <option value="claude-haiku-4-5">claude-haiku-4-5 (быстрая, дешёвая)</option>
+         <option value="claude-sonnet-4-6">claude-sonnet-4-6 (для диалогов)</option>
+@@ -35,38 +37,45 @@ async function render(container) {
+     <label>Supabase URL
+       <input id="set-surl" type="text" placeholder="https://xxxx.supabase.co">
+     </label>
+     <label>Supabase anon-ключ
+       <input id="set-skey" type="password">
+     </label>
+     <label>Код синхронизации (одинаковый на всех устройствах)
+       <input id="set-scode" type="text">
+     </label>
+     <button id="set-sync">Синхронизировать сейчас</button>
++    <h2>Память наставника</h2>
++    <label>Что наставник о тебе знает (по факту в строке)
++      <textarea id="set-memory" rows="6" placeholder="напр. Зовут Ник&#10;Друзья: Иван, Аня&#10;Цель: разговорный для жизни в Бенидорме"></textarea>
++    </label>
++    <button id="set-memclear" class="danger">Очистить память</button>
+     <p id="set-status" class="status"></p>
+   `;
+   container.querySelector('#set-model').value = model;
+   container.querySelector('#set-level').value = level;
+   container.querySelector('#set-key').value = apiKey;
+   container.querySelector('#set-surl').value = supabaseUrl;
+   container.querySelector('#set-skey').value = supabaseKey;
+   container.querySelector('#set-scode').value = syncCode;
++  container.querySelector('#set-memory').value = memory;
+ 
+   const status = container.querySelector('#set-status');
+ 
+   container.querySelector('#set-save').onclick = async () => {
+     await setSetting('apiKey', container.querySelector('#set-key').value.trim());
+     await setSetting('model', container.querySelector('#set-model').value);
+     await setSetting('level', container.querySelector('#set-level').value);
+     await setSetting('supabaseUrl', container.querySelector('#set-surl').value.trim().replace(/\/+$/, ''));
+     await setSetting('supabaseKey', container.querySelector('#set-skey').value.trim());
+     await setSetting('syncCode', container.querySelector('#set-scode').value.trim());
++    await saveMemory(container.querySelector('#set-memory').value.split('\n').map((s) => s.trim()).filter(Boolean));
+     status.textContent = 'Сохранено.';
+   };
+ 
+   container.querySelector('#set-test').onclick = async () => {
+     status.textContent = 'Проверяю…';
+     await setSetting('apiKey', container.querySelector('#set-key').value.trim());
+     const result = await testConnection();
+     status.textContent = result.message;
+   };
+ 
+@@ -75,13 +84,19 @@ async function render(container) {
+     await setSetting('supabaseKey', container.querySelector('#set-skey').value.trim());
+     await setSetting('syncCode', container.querySelector('#set-scode').value.trim());
+     status.textContent = 'Синхронизирую…';
+     try {
+       await syncNow();
+       status.textContent = 'Готово — данные синхронизированы.';
+     } catch (e) {
+       status.textContent = e.message;
+     }
+   };
++
++  container.querySelector('#set-memclear').onclick = async () => {
++    await saveMemory([]);
++    container.querySelector('#set-memory').value = '';
++    status.textContent = 'Память наставника очищена.';
++  };
+ }
+ 
+ registerFeature({ id: 'settings', title: 'Настройки', icon: '⚙️', order: 90, render });
+diff --git a/sw.js b/sw.js
+index 6d0071c..37be4c4 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,12 +1,12 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v14';
++const CACHE = 'espanol-v15';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
+   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
+   './js/listening.js', './js/grammar.js',
+   './js/assignments.js',
+   './js/stats.js', './js/asr.js', './js/speech.js', './js/progress.js',
+   './js/daily.js',
+diff --git a/test/merge.test.js b/test/merge.test.js
+index 5f43510..3f88e69 100644
+--- a/test/merge.test.js
++++ b/test/merge.test.js
+@@ -63,10 +63,18 @@ test('mergeSettings: assignments объединяются по id, done побе
+   const out = mergeSettings(a, b).assignments;
+   assert.equal(out.length, 2);
+   assert.equal(out.find((x) => x.id === 'a1').status, 'done');
+ });
+ 
+ test('mergeSettings: course берёт версию с большим прогрессом', () => {
+   const a = { course: { units: [{ status: 'done' }, { status: 'todo' }] } };
+   const b = { course: { units: [{ status: 'todo' }, { status: 'todo' }] } };
+   assert.equal(mergeSettings(a, b).course, a.course);
+ });
++
++test('mergeSettings: tutorMemory объединяется без дублей', () => {
++  const a = { tutorMemory: ['Зовут Ник', 'Друг Иван'] };
++  const b = { tutorMemory: ['друг иван', 'Цель: разговорный'] };
++  const out = mergeSettings(a, b).tutorMemory;
++  assert.equal(out.length, 3);
++  assert.ok(out.includes('Цель: разговорный'));
++});
