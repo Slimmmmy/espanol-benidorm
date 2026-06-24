@@ -4,6 +4,8 @@ import { buildProfile, getMemory, saveMemory } from './profile.js';
 import { chatReply, extractMemory } from './claude.js';
 import { autoSync } from './sync.js';
 import { escapeHtml } from './util.js';
+import { recognizeOnce } from './asr.js';
+import { speak } from './tts.js';
 
 let busy = false;
 
@@ -13,9 +15,14 @@ async function saveHistory(h) { await setSetting('chatHistory', h.slice(-60)); }
 function bubblesHtml(history) {
   const e = escapeHtml;
   if (!history.length) {
-    return '<p class="status">Привет! Я твой наставник по испанскому. Спроси что угодно — объясню, помогу, потренирую. Можешь писать по-русски или по-испански.</p>';
+    return '<p class="status">Привет! Я твой наставник по испанскому. Спроси что угодно — объясню, помогу, потренирую. Можешь писать или говорить (🎤) по-испански.</p>';
   }
-  return history.map((m) => `<div class="chat-msg chat-${m.role === 'user' ? 'me' : 'bot'}">${e(m.content)}</div>`).join('');
+  return history.map((m, i) => {
+    if (m.role === 'user') {
+      return `<div class="chat-msg chat-me">${m.voice ? '🎤 ' : ''}${e(m.content)}</div>`;
+    }
+    return `<div class="chat-msg chat-bot">${e(m.content)}<button class="chat-say" data-say="${i}" title="Озвучить">🔊</button></div>`;
+  }).join('');
 }
 
 function scrollBottom() {
@@ -27,6 +34,9 @@ function renderLog(container, history, typing) {
   const log = container.querySelector('#chat-log');
   if (!log) return;
   log.innerHTML = bubblesHtml(history) + (typing ? '<div class="chat-msg chat-bot chat-typing">…</div>' : '');
+  log.querySelectorAll('[data-say]').forEach((b) => {
+    b.onclick = () => { const m = history[Number(b.dataset.say)]; if (m) speak(m.content); };
+  });
   scrollBottom();
 }
 
@@ -41,7 +51,30 @@ async function refreshMemory(userMsg, assistantMsg) {
   } catch (e) { /* тихо: память — необязательная функция */ }
 }
 
-async function send(container) {
+async function voiceInput(container) {
+  if (busy) return;
+  const mic = container.querySelector('#chat-mic');
+  const input = container.querySelector('#chat-input');
+  if (mic) mic.disabled = true;
+  const prevPh = input ? input.placeholder : '';
+  if (input) input.placeholder = '🎤 Говори по-испански…';
+  try {
+    const heard = await recognizeOnce('es-ES');
+    if (input) { input.value = heard; input.placeholder = prevPh; }
+    if (mic) mic.disabled = false;
+    await send(container, { voice: true });
+  } catch (err) {
+    if (input) input.placeholder = prevPh;
+    if (mic) mic.disabled = false;
+    const log = container.querySelector('#chat-log');
+    if (log) {
+      const h = await getHistory();
+      renderLog(container, h.concat([{ role: 'assistant', content: '⚠️ ' + err.message, ts: Date.now() }]), false);
+    }
+  }
+}
+
+async function send(container, opts = {}) {
   if (busy) return;
   const input = container.querySelector('#chat-input');
   const text = input.value.trim();
@@ -52,11 +85,11 @@ async function send(container) {
   let history = [];
   try {
     history = await getHistory();
-    history.push({ role: 'user', content: text, ts: Date.now() });
+    history.push({ role: 'user', content: text, ts: Date.now(), ...(opts.voice ? { voice: true } : {}) });
     await saveHistory(history);
     renderLog(container, history, true);
     const profile = await buildProfile();
-    const reply = await chatReply(history, profile);
+    const reply = await chatReply(history, profile, opts);
     history.push({ role: 'assistant', content: reply, ts: Date.now() });
     await saveHistory(history);
     autoSync(); // тихо отправить новую переписку в облако (если синхронизация настроена)
@@ -77,6 +110,7 @@ async function render(container) {
     <h1>Наставник</h1>
     <div id="chat-log" class="chat-log"></div>
     <div class="chat-bar">
+      <button id="chat-mic" title="Сказать по-испански">🎤</button>
       <input id="chat-input" type="text" placeholder="Спроси наставника…" autocapitalize="sentences">
       <button id="chat-send">➤</button>
     </div>
@@ -88,6 +122,7 @@ async function render(container) {
   container.querySelector('#chat-input').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') { ev.preventDefault(); send(container); }
   });
+  container.querySelector('#chat-mic').onclick = () => voiceInput(container);
 }
 
 registerFeature({ id: 'chat', title: 'Чат', icon: '💬', order: 6, render });
