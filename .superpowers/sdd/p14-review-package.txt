@@ -1,0 +1,324 @@
+# Review package: plan-14-voice-quality (e6802be..HEAD)
+
+## Commits
+cb81a2f feat: init voice on startup, cache v17
+5d498fe feat: voice and speed picker with test button in settings
+20e0566 feat: best-Spanish-voice selection and rate in TTS with tests
+
+## Stat
+ index.html       |  2 ++
+ js/settings.js   | 33 ++++++++++++++++++++++++++++
+ js/tts.js        | 67 +++++++++++++++++++++++++++++++++++++++++++++++++-------
+ sw.js            |  2 +-
+ test/tts.test.js | 28 +++++++++++++++++++++++
+ 5 files changed, 123 insertions(+), 9 deletions(-)
+
+## Full diff
+diff --git a/index.html b/index.html
+index c118094..26e02e0 100644
+--- a/index.html
++++ b/index.html
+@@ -11,30 +11,32 @@
+   <link rel="apple-touch-icon" href="icons/icon-180.png">
+   <link rel="stylesheet" href="css/styles.css">
+   <title>Español Benidorm</title>
+ </head>
+ <body>
+   <main id="screen"></main>
+   <nav id="nav"></nav>
+   <script type="module">
+     import { startApp } from './js/app.js';
+     import { autoSync } from './js/sync.js';
++    import { initVoice } from './js/tts.js';
+     import './js/today.js';
+     import './js/teacher.js';
+     import './js/chat.js';
+     import './js/study.js';
+     import './js/daily.js';
+     import './js/dictionary.js';
+     import './js/listening.js';
+     import './js/speech.js';
+     import './js/grammar.js';
+     import './js/assignments.js';
+     import './js/progress.js';
+     import './js/settings.js';
+     startApp();
++    initVoice();
+     autoSync();
+     if ('serviceWorker' in navigator) {
+       navigator.serviceWorker.register('sw.js').catch(() => {});
+     }
+   </script>
+ </body>
+ </html>
+diff --git a/js/settings.js b/js/settings.js
+index 63cc2d7..6f18dca 100644
+--- a/js/settings.js
++++ b/js/settings.js
+@@ -1,24 +1,30 @@
+ import { registerFeature } from './app.js';
+ import { getSetting, setSetting } from './db.js';
+ import { testConnection, DEFAULT_MODEL } from './claude.js';
+ import { syncNow } from './sync.js';
+ import { getMemory, saveMemory } from './profile.js';
++import { getVoicesAsync, listEsVoices, initVoice, speak } from './tts.js';
++import { escapeHtml } from './util.js';
+ 
+ async function render(container) {
+   const apiKey = (await getSetting('apiKey')) || '';
+   const model = (await getSetting('model')) || DEFAULT_MODEL;
+   const level = (await getSetting('level')) || 'A2-B1';
+   const supabaseUrl = (await getSetting('supabaseUrl')) || '';
+   const supabaseKey = (await getSetting('supabaseKey')) || '';
+   const syncCode = (await getSetting('syncCode')) || '';
+   const memory = (await getMemory()).join('\n');
++  const voices = await getVoicesAsync();
++  const esVoices = listEsVoices(voices);
++  const voiceURI = (await getSetting('voiceURI')) || '';
++  const voiceRate = String((await getSetting('voiceRate')) || '1');
+ 
+   container.innerHTML = `
+     <h1>Настройки</h1>
+     <label>API-ключ Claude
+       <input id="set-key" type="password" placeholder="sk-ant-...">
+     </label>
+     <label>Модель
+       <select id="set-model">
+         <option value="claude-haiku-4-5">claude-haiku-4-5 (быстрая, дешёвая)</option>
+         <option value="claude-sonnet-4-6">claude-sonnet-4-6 (для диалогов)</option>
+@@ -42,40 +48,60 @@ async function render(container) {
+     </label>
+     <label>Код синхронизации (одинаковый на всех устройствах)
+       <input id="set-scode" type="text">
+     </label>
+     <button id="set-sync">Синхронизировать сейчас</button>
+     <h2>Память наставника</h2>
+     <label>Что наставник о тебе знает (по факту в строке)
+       <textarea id="set-memory" rows="6" placeholder="напр. Зовут Ник&#10;Друзья: Иван, Аня&#10;Цель: разговорный для жизни в Бенидорме"></textarea>
+     </label>
+     <button id="set-memclear" class="danger">Очистить память</button>
++    <h2>Голос озвучки</h2>
++    <label>Испанский голос
++      <select id="set-voice">${esVoices.length
++        ? esVoices.map((v) => `<option value="${escapeHtml(v.voiceURI)}">${escapeHtml(v.name)} (${escapeHtml(v.lang)})</option>`).join('')
++        : '<option value="">(испанские голоса не найдены)</option>'}</select>
++    </label>
++    <label>Скорость
++      <select id="set-rate">
++        <option value="1">Обычная</option>
++        <option value="0.9">Чётче (чуть медленнее)</option>
++        <option value="0.8">Медленно</option>
++      </select>
++    </label>
++    <button id="set-voicetest">▶︎ Проверить голос</button>
++    <p class="status">Совет: на iPhone скачай «улучшенный» испанский голос в Настройках iOS → Универсальный доступ → Устный контент → Голоса → Испанский.</p>
+     <p id="set-status" class="status"></p>
+   `;
+   container.querySelector('#set-model').value = model;
+   container.querySelector('#set-level').value = level;
+   container.querySelector('#set-key').value = apiKey;
+   container.querySelector('#set-surl').value = supabaseUrl;
+   container.querySelector('#set-skey').value = supabaseKey;
+   container.querySelector('#set-scode').value = syncCode;
+   container.querySelector('#set-memory').value = memory;
++  container.querySelector('#set-voice').value = voiceURI;
++  container.querySelector('#set-rate').value = voiceRate;
+ 
+   const status = container.querySelector('#set-status');
+ 
+   container.querySelector('#set-save').onclick = async () => {
+     await setSetting('apiKey', container.querySelector('#set-key').value.trim());
+     await setSetting('model', container.querySelector('#set-model').value);
+     await setSetting('level', container.querySelector('#set-level').value);
+     await setSetting('supabaseUrl', container.querySelector('#set-surl').value.trim().replace(/\/+$/, ''));
+     await setSetting('supabaseKey', container.querySelector('#set-skey').value.trim());
+     await setSetting('syncCode', container.querySelector('#set-scode').value.trim());
+     await saveMemory(container.querySelector('#set-memory').value.split('\n').map((s) => s.trim()).filter(Boolean));
++    await setSetting('voiceURI', container.querySelector('#set-voice').value);
++    await setSetting('voiceRate', container.querySelector('#set-rate').value);
++    await initVoice();
+     status.textContent = 'Сохранено.';
+   };
+ 
+   container.querySelector('#set-test').onclick = async () => {
+     status.textContent = 'Проверяю…';
+     await setSetting('apiKey', container.querySelector('#set-key').value.trim());
+     const result = await testConnection();
+     status.textContent = result.message;
+   };
+ 
+@@ -90,13 +116,20 @@ async function render(container) {
+     } catch (e) {
+       status.textContent = e.message;
+     }
+   };
+ 
+   container.querySelector('#set-memclear').onclick = async () => {
+     await saveMemory([]);
+     container.querySelector('#set-memory').value = '';
+     status.textContent = 'Память наставника очищена.';
+   };
++
++  container.querySelector('#set-voicetest').onclick = async () => {
++    await setSetting('voiceURI', container.querySelector('#set-voice').value);
++    await setSetting('voiceRate', container.querySelector('#set-rate').value);
++    await initVoice();
++    speak('Hola, soy tu profesor de español. Vamos a practicar la pronunciación.');
++  };
+ }
+ 
+ registerFeature({ id: 'settings', title: 'Настройки', icon: '⚙️', order: 90, render });
+diff --git a/js/tts.js b/js/tts.js
+index c242b7e..a37c59e 100644
+--- a/js/tts.js
++++ b/js/tts.js
+@@ -1,38 +1,89 @@
+-// Озвучка текста через Web Speech API (SpeechSynthesis).
++// Озвучка через Web Speech API + выбор лучшего испанского голоса.
++import { getSetting } from './db.js';
++
++const ENHANCED = /enhanced|premium|siri|m[oó]nica|paulina|marisol|lucia|sergio/i;
++
++let preferredVoiceURI = null;
++let voiceRate = 1;
++
++function voiceScore(v) {
++  let s = 0;
++  if (ENHANCED.test(v.name || '')) s += 10;
++  if ((v.lang || '').toLowerCase() === 'es-es') s += 3;
++  if (v.localService) s += 1;
++  return s;
++}
++
++export function pickBestVoice(voices, preferredURI) {
++  const list = Array.isArray(voices) ? voices : [];
++  if (preferredURI) {
++    const exact = list.find((v) => v.voiceURI === preferredURI);
++    if (exact) return exact;
++  }
++  const es = list.filter((v) => (v.lang || '').toLowerCase().startsWith('es'));
++  if (es.length === 0) return null;
++  return es.slice().sort((a, b) => voiceScore(b) - voiceScore(a))[0];
++}
++
++export function listEsVoices(voices) {
++  const es = (Array.isArray(voices) ? voices : []).filter((v) => (v.lang || '').toLowerCase().startsWith('es'));
++  return es.slice().sort((a, b) => voiceScore(b) - voiceScore(a));
++}
++
++export function getVoicesAsync() {
++  return new Promise((resolve) => {
++    if (typeof window === 'undefined' || !('speechSynthesis' in window)) { resolve([]); return; }
++    const ready = speechSynthesis.getVoices();
++    if (ready.length) { resolve(ready); return; }
++    speechSynthesis.addEventListener('voiceschanged', () => resolve(speechSynthesis.getVoices()), { once: true });
++    setTimeout(() => resolve(speechSynthesis.getVoices()), 1200);
++  });
++}
++
++export async function initVoice() {
++  preferredVoiceURI = (await getSetting('voiceURI')) || null;
++  const r = Number(await getSetting('voiceRate'));
++  voiceRate = r > 0 ? r : 1;
++}
++
++function currentVoice() {
++  return pickBestVoice(speechSynthesis.getVoices(), preferredVoiceURI);
++}
++
+ export function speak(text, lang = 'es-ES') {
+   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
+   const u = new SpeechSynthesisUtterance(text);
+   u.lang = lang;
+-  const esVoice = speechSynthesis.getVoices().find((v) => v.lang && v.lang.startsWith('es'));
+-  if (esVoice) u.voice = esVoice;
++  const v = currentVoice();
++  if (v) u.voice = v;
++  u.rate = voiceRate;
+   speechSynthesis.cancel();
+   speechSynthesis.speak(u);
+   return true;
+ }
+ 
+ export function stopSpeaking() {
+-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+-    speechSynthesis.cancel();
+-  }
++  if (typeof window !== 'undefined' && 'speechSynthesis' in window) speechSynthesis.cancel();
+ }
+ 
+ export function speakSequence(lines, lang = 'es-ES') {
+   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+   speechSynthesis.cancel();
+-  const esVoice = speechSynthesis.getVoices().find((v) => v.lang && v.lang.startsWith('es'));
++  const voice = currentVoice();
+   const speakers = [];
+   const pitchFor = (speaker) => {
+     if (!speaker) return 1.0;
+     let i = speakers.indexOf(speaker);
+     if (i === -1) { speakers.push(speaker); i = speakers.length - 1; }
+     return i % 2 === 0 ? 1.05 : 0.8;
+   };
+   // Реплики ставятся в очередь синтеза синхронно — полагаемся на очередь Chrome (целевой браузер).
+   for (const line of lines) {
+     const u = new SpeechSynthesisUtterance(line.es);
+     u.lang = lang;
+-    if (esVoice) u.voice = esVoice;
++    if (voice) u.voice = voice;
++    u.rate = voiceRate;
+     u.pitch = pitchFor(line.speaker);
+     speechSynthesis.speak(u);
+   }
+ }
+diff --git a/sw.js b/sw.js
+index f795121..45abc6d 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,12 +1,12 @@
+ // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
+-const CACHE = 'espanol-v16';
++const CACHE = 'espanol-v17';
+ const SHELL = [
+   './', './index.html', './manifest.webmanifest', './css/styles.css',
+   './sw.js',
+   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
+   './js/lang.js', './js/settings.js',
+   './js/util.js', './js/srs.js', './js/tts.js', './js/dictionary.js', './js/study.js',
+   './js/listening.js', './js/grammar.js',
+   './js/assignments.js',
+   './js/stats.js', './js/asr.js', './js/speech.js', './js/progress.js',
+   './js/daily.js',
+diff --git a/test/tts.test.js b/test/tts.test.js
+new file mode 100644
+index 0000000..2fc0bbf
+--- /dev/null
++++ b/test/tts.test.js
+@@ -0,0 +1,28 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { pickBestVoice, listEsVoices } from '../js/tts.js';
++
++const voices = [
++  { name: 'Google US English', lang: 'en-US', voiceURI: 'en1', localService: false },
++  { name: 'Mónica', lang: 'es-ES', voiceURI: 'es-monica', localService: true },
++  { name: 'Paulina', lang: 'es-MX', voiceURI: 'es-paulina', localService: true },
++  { name: 'Jorge', lang: 'es-ES', voiceURI: 'es-jorge', localService: true },
++];
++
++test('pickBestVoice: предпочитает улучшенный es-ES голос', () => {
++  assert.equal(pickBestVoice(voices, null).voiceURI, 'es-monica');
++});
++
++test('pickBestVoice: уважает выбранный голос', () => {
++  assert.equal(pickBestVoice(voices, 'es-jorge').voiceURI, 'es-jorge');
++});
++
++test('pickBestVoice: нет испанских → null', () => {
++  assert.equal(pickBestVoice([{ name: 'X', lang: 'en-US', voiceURI: 'x' }], null), null);
++});
++
++test('listEsVoices: только испанские, улучшенный первый', () => {
++  const l = listEsVoices(voices);
++  assert.equal(l.length, 3);
++  assert.equal(l[0].voiceURI, 'es-monica');
++});

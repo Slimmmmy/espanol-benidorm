@@ -1,7 +1,7 @@
-# Plan 13 — Voice in chat: progress ledger
+# Plan 14 — Voice quality: progress ledger
 
-Branch: plan-13-voice-chat
-BASE: cebd4ba
+Branch: plan-14-voice-quality
+BASE: e6802be
 
-- [x] Tasks 1-3 (57fe7a4..a81c848)
-- [x] Final whole-branch review (APPROVED; applied noSpeak on error bubbles)
+- [x] Tasks 1-3 (20e0566..cb81a2f)
+- [x] Final whole-branch review (APPROVED; await initVoice + test feedback)

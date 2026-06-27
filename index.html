@@ -18,6 +18,7 @@
   <script type="module">
     import { startApp } from './js/app.js';
     import { autoSync } from './js/sync.js';
+    import { initVoice } from './js/tts.js';
     import './js/today.js';
     import './js/teacher.js';
     import './js/chat.js';
@@ -31,6 +32,7 @@
     import './js/progress.js';
     import './js/settings.js';
     startApp();
+    await initVoice();
     autoSync();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
