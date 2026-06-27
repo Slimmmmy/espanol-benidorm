@@ -32,7 +32,7 @@
     import './js/progress.js';
     import './js/settings.js';
     startApp();
-    initVoice();
+    await initVoice();
     autoSync();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});

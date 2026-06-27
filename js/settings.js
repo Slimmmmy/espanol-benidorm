@@ -128,6 +128,7 @@ async function render(container) {
     await setSetting('voiceURI', container.querySelector('#set-voice').value);
     await setSetting('voiceRate', container.querySelector('#set-rate').value);
     await initVoice();
+    status.textContent = 'Воспроизвожу…';
     speak('Hola, soy tu profesor de español. Vamos a practicar la pronunciación.');
   };
 }
