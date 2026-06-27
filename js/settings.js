@@ -3,6 +3,8 @@ import { getSetting, setSetting } from './db.js';
 import { testConnection, DEFAULT_MODEL } from './claude.js';
 import { syncNow } from './sync.js';
 import { getMemory, saveMemory } from './profile.js';
+import { getVoicesAsync, listEsVoices, initVoice, speak } from './tts.js';
+import { escapeHtml } from './util.js';
 
 async function render(container) {
   const apiKey = (await getSetting('apiKey')) || '';
@@ -12,6 +14,10 @@ async function render(container) {
   const supabaseKey = (await getSetting('supabaseKey')) || '';
   const syncCode = (await getSetting('syncCode')) || '';
   const memory = (await getMemory()).join('\n');
+  const voices = await getVoicesAsync();
+  const esVoices = listEsVoices(voices);
+  const voiceURI = (await getSetting('voiceURI')) || '';
+  const voiceRate = String((await getSetting('voiceRate')) || '1');
 
   container.innerHTML = `
     <h1>Настройки</h1>
@@ -49,6 +55,21 @@ async function render(container) {
       <textarea id="set-memory" rows="6" placeholder="напр. Зовут Ник&#10;Друзья: Иван, Аня&#10;Цель: разговорный для жизни в Бенидорме"></textarea>
     </label>
     <button id="set-memclear" class="danger">Очистить память</button>
+    <h2>Голос озвучки</h2>
+    <label>Испанский голос
+      <select id="set-voice">${esVoices.length
+        ? esVoices.map((v) => `<option value="${escapeHtml(v.voiceURI)}">${escapeHtml(v.name)} (${escapeHtml(v.lang)})</option>`).join('')
+        : '<option value="">(испанские голоса не найдены)</option>'}</select>
+    </label>
+    <label>Скорость
+      <select id="set-rate">
+        <option value="1">Обычная</option>
+        <option value="0.9">Чётче (чуть медленнее)</option>
+        <option value="0.8">Медленно</option>
+      </select>
+    </label>
+    <button id="set-voicetest">▶︎ Проверить голос</button>
+    <p class="status">Совет: на iPhone скачай «улучшенный» испанский голос в Настройках iOS → Универсальный доступ → Устный контент → Голоса → Испанский.</p>
     <p id="set-status" class="status"></p>
   `;
   container.querySelector('#set-model').value = model;
@@ -58,6 +79,8 @@ async function render(container) {
   container.querySelector('#set-skey').value = supabaseKey;
   container.querySelector('#set-scode').value = syncCode;
   container.querySelector('#set-memory').value = memory;
+  container.querySelector('#set-voice').value = voiceURI;
+  container.querySelector('#set-rate').value = voiceRate;
 
   const status = container.querySelector('#set-status');
 
@@ -69,6 +92,9 @@ async function render(container) {
     await setSetting('supabaseKey', container.querySelector('#set-skey').value.trim());
     await setSetting('syncCode', container.querySelector('#set-scode').value.trim());
     await saveMemory(container.querySelector('#set-memory').value.split('\n').map((s) => s.trim()).filter(Boolean));
+    await setSetting('voiceURI', container.querySelector('#set-voice').value);
+    await setSetting('voiceRate', container.querySelector('#set-rate').value);
+    await initVoice();
     status.textContent = 'Сохранено.';
   };
 
@@ -96,6 +122,13 @@ async function render(container) {
     await saveMemory([]);
     container.querySelector('#set-memory').value = '';
     status.textContent = 'Память наставника очищена.';
+  };
+
+  container.querySelector('#set-voicetest').onclick = async () => {
+    await setSetting('voiceURI', container.querySelector('#set-voice').value);
+    await setSetting('voiceRate', container.querySelector('#set-rate').value);
+    await initVoice();
+    speak('Hola, soy tu profesor de español. Vamos a practicar la pronunciación.');
   };
 }
 
