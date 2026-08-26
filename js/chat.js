@@ -3,7 +3,7 @@ import { getSetting, setSetting } from './db.js';
 import { buildProfile, getMemory, saveMemory } from './profile.js';
 import { chatReply, extractMemory } from './claude.js';
 import { autoSync } from './sync.js';
-import { escapeHtml } from './util.js';
+import { escapeHtml, renderMarkdown } from './util.js';
 import { recognizeOnce } from './asr.js';
 import { speak } from './tts.js';
 
@@ -21,7 +21,7 @@ function bubblesHtml(history) {
     if (m.role === 'user') {
       return `<div class="chat-msg chat-me">${m.voice ? '🎤 ' : ''}${e(m.content)}</div>`;
     }
-    return `<div class="chat-msg chat-bot">${e(m.content)}${m.noSpeak ? '' : `<button class="chat-say" data-say="${i}" title="Озвучить">🔊</button>`}</div>`;
+    return `<div class="chat-msg chat-bot">${renderMarkdown(m.content)}${m.noSpeak ? '' : `<button class="chat-say" data-say="${i}" title="Озвучить">🔊</button>`}</div>`;
   }).join('');
 }
 
