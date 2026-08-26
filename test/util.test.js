@@ -73,3 +73,37 @@ test('recentMessages: схлопывает подряд идущие одина�
   const h = [{ role: 'user', content: 'a' }, { role: 'user', content: 'b' }, { role: 'assistant', content: 'c' }];
   assert.deepEqual(recentMessages(h, 10), [{ role: 'user', content: 'b' }, { role: 'assistant', content: 'c' }]);
 });
+
+import { renderMarkdown } from '../js/util.js';
+
+test('renderMarkdown: жирный и курсив', () => {
+  assert.equal(renderMarkdown('**СОВЕТ:** это *важно*'), '<p><strong>СОВЕТ:</strong> это <em>важно</em></p>');
+});
+
+test('renderMarkdown: маркированный список', () => {
+  assert.equal(renderMarkdown('- один\n- два'), '<ul><li>один</li><li>два</li></ul>');
+});
+
+test('renderMarkdown: нумерованный список', () => {
+  assert.equal(renderMarkdown('1. первый\n2. второй'), '<ol><li>первый</li><li>второй</li></ol>');
+});
+
+test('renderMarkdown: разделитель и заголовок', () => {
+  assert.equal(renderMarkdown('---'), '<hr>');
+  assert.equal(renderMarkdown('### Тема'), '<div class="md-h">Тема</div>');
+});
+
+test('renderMarkdown: код', () => {
+  assert.equal(renderMarkdown('пиши `hola`'), '<p>пиши <code>hola</code></p>');
+});
+
+test('renderMarkdown: HTML экранируется (без XSS)', () => {
+  const out = renderMarkdown('<img src=x onerror=alert(1)>');
+  assert.ok(!out.includes('<img'));
+  assert.ok(out.includes('&lt;img'));
+});
+
+test('renderMarkdown: пустой текст → пусто', () => {
+  assert.equal(renderMarkdown(''), '');
+  assert.equal(renderMarkdown(null), '');
+});

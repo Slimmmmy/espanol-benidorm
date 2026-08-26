@@ -234,3 +234,21 @@ button.ok { background: linear-gradient(135deg, #34d399, #10b981); color: #052e2
 #chat-mic:disabled { opacity: .5; }
 .chat-bar input { flex: 1; min-width: 0; }
 .chat-say { margin: 0 0 0 8px; padding: 2px 7px; font-size: 13px; background: transparent; border: 1px solid var(--border); border-radius: 8px; vertical-align: middle; }
+
+/* ── Разметка в сообщениях наставника ───────────────── */
+.chat-bot { white-space: normal; }
+.chat-msg p { margin: 0 0 8px; }
+.chat-msg p:last-child { margin-bottom: 0; }
+.chat-msg ul, .chat-msg ol { margin: 6px 0 8px; padding-left: 20px; }
+.chat-msg li { margin: 3px 0; }
+.chat-msg li::marker { color: var(--accent-2); }
+.chat-msg strong { font-weight: 700; color: #fff; }
+.chat-msg em { font-style: italic; }
+.chat-msg code {
+  background: rgba(124, 108, 255, 0.16); padding: 1px 6px;
+  border-radius: 6px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.chat-msg hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+.md-h { font-weight: 700; margin: 10px 0 4px; color: #fff; }
+.md-h:first-child { margin-top: 0; }
+.chat-say { display: inline-block; margin-top: 6px; }

@@ -68,3 +68,42 @@ export function recentMessages(history, max = 20) {
   }
   return out;
 }
+
+// Безопасный рендер лёгкого markdown: сначала экранируем, потом размечаем.
+function mdInline(s) {
+  return s
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>')
+    .replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>');
+}
+
+export function renderMarkdown(text) {
+  const lines = escapeHtml(text).split('\n');
+  const out = [];
+  let list = null;
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { closeList(); continue; }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) { closeList(); out.push('<hr>'); continue; }
+    const h = line.match(/^#{1,6}\s+(.*)$/);
+    if (h) { closeList(); out.push(`<div class="md-h">${mdInline(h[1])}</div>`); continue; }
+    const ul = line.match(/^[-*•]\s+(.*)$/);
+    if (ul) {
+      if (list !== 'ul') { closeList(); out.push('<ul>'); list = 'ul'; }
+      out.push(`<li>${mdInline(ul[1])}</li>`);
+      continue;
+    }
+    const ol = line.match(/^\d+[.)]\s+(.*)$/);
+    if (ol) {
+      if (list !== 'ol') { closeList(); out.push('<ol>'); list = 'ol'; }
+      out.push(`<li>${mdInline(ol[1])}</li>`);
+      continue;
+    }
+    closeList();
+    out.push(`<p>${mdInline(line)}</p>`);
+  }
+  closeList();
+  return out.join('');
+}
