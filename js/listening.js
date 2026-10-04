@@ -5,6 +5,7 @@ import { escapeHtml } from './util.js';
 import { diffWords } from './exercises.js';
 import { enableWordPick } from './wordpick.js';
 import { recordActivity } from './activity.js';
+import { getSetting } from './db.js';
 
 const TOPICS = [
   'В баре заказать кофе и тапас',
@@ -75,9 +76,22 @@ function dictationHtml(d) {
     </div>`;
 }
 
+// Тот же голос, что и при прослушивании всего диалога: первый персонаж — основной голос, второй — другой.
+async function lineGender(d, i) {
+  const speakers = [];
+  for (const l of d.lines) if (!speakers.includes(l.speaker)) speakers.push(l.speaker);
+  const main = (await getSetting('googleVoiceMain')) || 'f';
+  const other = main === 'f' ? 'm' : 'f';
+  return speakers.indexOf(d.lines[i].speaker) % 2 === 0 ? main : other;
+}
+
 function wireLineButtons(root, d) {
-  root.querySelectorAll('[data-line]').forEach((b) => { b.onclick = () => speak(d.lines[Number(b.dataset.line)].es); });
-  root.querySelectorAll('[data-slow]').forEach((b) => { b.onclick = () => speak(d.lines[Number(b.dataset.slow)].es, 'es-ES', { slow: true }); });
+  root.querySelectorAll('[data-line]').forEach((b) => {
+    b.onclick = async () => { const i = Number(b.dataset.line); speak(d.lines[i].es, 'es-ES', { gender: await lineGender(d, i) }); };
+  });
+  root.querySelectorAll('[data-slow]').forEach((b) => {
+    b.onclick = async () => { const i = Number(b.dataset.slow); speak(d.lines[i].es, 'es-ES', { slow: true, gender: await lineGender(d, i) }); };
+  });
 }
 
 function showDialogue(container, d) {

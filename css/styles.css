@@ -200,6 +200,7 @@ button.mini {
 }
 .word-actions, .grade-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .word-actions button { margin: 0; }
+.word-actions button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .study-front, .study-es { font-size: 24px; font-weight: 600; text-align: center; margin: 14px 0; text-wrap: balance; }
 .study-front.es b, .study-es b { font-weight: 600; }
 .grade-row { margin-top: 16px; }
@@ -503,3 +504,6 @@ button.mini {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+.howto { margin: 6px 0 0; padding-left: 20px; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+.howto li { margin: 4px 0; }

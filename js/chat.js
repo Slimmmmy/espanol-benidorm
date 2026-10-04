@@ -5,7 +5,7 @@ import { chatReply, extractMemory } from './claude.js';
 import { autoSync } from './sync.js';
 import { escapeHtml, renderMarkdown } from './util.js';
 import { recognizeOnce } from './asr.js';
-import { speak } from './tts.js';
+import { speakSequence, spanishSegments } from './tts.js';
 import { enableWordPick } from './wordpick.js';
 import { logMistakes } from './mistakes.js';
 import { recordActivity } from './activity.js';
@@ -41,7 +41,13 @@ function renderLog(container, history, typing) {
   if (!log) return;
   log.innerHTML = bubblesHtml(history) + (typing ? '<div class="chat-msg chat-bot chat-typing">…</div>' : '');
   log.querySelectorAll('[data-say]').forEach((b) => {
-    b.onclick = () => { const m = history[Number(b.dataset.say)]; if (m) speak(m.content); };
+    b.onclick = () => {
+      const m = history[Number(b.dataset.say)];
+      if (!m) return;
+      // Озвучиваем только испанские фразы — русские объяснения испанским голосом звучат плохо.
+      const parts = spanishSegments(m.content);
+      if (parts.length) speakSequence(parts.map((es) => ({ es, speaker: '' })));
+    };
   });
   log.querySelectorAll('.chat-bot').forEach((el) => enableWordPick(el));
   scrollBottom();
