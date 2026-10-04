@@ -24,7 +24,7 @@
     import { autoSync } from './js/sync.js';
     import { initVoice } from './js/tts.js';
     import { refreshBadge } from './js/reminders.js';
-    import { initCapture } from './js/capture.js';
+    import { initCapture, processQueue } from './js/capture.js';
     import './js/today.js';
     import './js/teacher.js';
     import './js/chat.js';
@@ -42,7 +42,11 @@
     startApp();
     initCapture();
     await initVoice();
-    autoSync();
+    // После синхронизации разбираем слова, которые пришли с других устройств (например, из команды iPhone).
+    autoSync().then(processQueue);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') autoSync().then(processQueue).then(() => refreshBadge());
+    });
     refreshBadge();
     if ('serviceWorker' in navigator) {
       // Когда установилась новая версия — один раз перезагружаемся на неё.

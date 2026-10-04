@@ -1,5 +1,5 @@
 // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
-const CACHE = 'espanol-v25';
+const CACHE = 'espanol-v26';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css', './css/fonts.css',
   './fonts/unbounded-normal-cyrillic.woff2', './fonts/unbounded-normal-latin.woff2',
@@ -40,8 +40,8 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  // К API всегда сеть, его не кэшируем.
-  if (url.hostname.endsWith('anthropic.com') || url.hostname.endsWith('googleapis.com')) return;
+  // Обслуживаем только файлы самого приложения; запросы к API (Claude, Google, Supabase) идут напрямую в сеть.
+  if (url.origin !== self.location.origin) return;
   if (e.request.method !== 'GET') return;
   e.respondWith(
     caches.open(CACHE)

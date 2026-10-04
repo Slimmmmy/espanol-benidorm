@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { newItem, decide, needsChoice, mergeInbox } from '../js/capture.js';
+import { newItem, decide, needsChoice, mergeInbox, parseCaptureHash } from '../js/capture.js';
 
 test('newItem: сохраняет запись как есть, статус pending', () => {
   const it = newItem('  vэнга ', ' бар ', 100);
@@ -33,4 +33,14 @@ test('mergeInbox: побеждает продвинутый статус', () =>
     [{ id: 'x', createdAt: 1, status: 'added' }, { id: 'y', createdAt: 2, status: 'choose' }],
   );
   assert.deepEqual(out.map((i) => i.status), ['added', 'added']);
+});
+
+test('parseCaptureHash: панель, слово из команды iPhone, кодировки', () => {
+  assert.deepEqual(parseCaptureHash('#capture'), { text: '' });
+  assert.deepEqual(parseCaptureHash('#capture/venga'), { text: 'venga' });
+  assert.deepEqual(parseCaptureHash('#capture/qu%C3%A9%20pasa'), { text: 'qué pasa' });
+  assert.deepEqual(parseCaptureHash('#capture/a+lo+mejor'), { text: 'a lo mejor' });
+  assert.deepEqual(parseCaptureHash('#capture/%E2%80%A6%'), { text: '%E2%80%A6%' });
+  assert.equal(parseCaptureHash('#today'), null);
+  assert.equal(parseCaptureHash(''), null);
 });
