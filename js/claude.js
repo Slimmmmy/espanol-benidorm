@@ -1,6 +1,6 @@
 import { getSetting } from './db.js';
 import { extractJson, recentMessages } from './util.js';
-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT, ROLEPLAY_SYSTEM, ROLEPLAY_DEBRIEF_SYSTEM, READER_SYSTEM, READER_QA_SYSTEM } from './prompts.js';
+import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT, ROLEPLAY_SYSTEM, ROLEPLAY_DEBRIEF_SYSTEM, READER_SYSTEM, READER_QA_SYSTEM, CAPTURE_SYSTEM } from './prompts.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-4-5';
 export const DEFAULT_CHAT_MODEL = 'claude-sonnet-5-5';
@@ -270,4 +270,14 @@ export async function askAboutPage(pageText, history) {
     tier: 'chat',
     cache: true,
   });
+}
+
+// Слово «как услышал» → 1–3 варианта испанского слова.
+export async function resolveHeardWord(raw, context = '') {
+  const text = await callClaude({
+    system: CAPTURE_SYSTEM,
+    messages: [{ role: 'user', content: `Записал так: ${raw}${context ? `\nГде услышал: ${context}` : ''}` }],
+    maxTokens: 700,
+  });
+  return extractJson(text);
 }

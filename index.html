@@ -24,6 +24,7 @@
     import { autoSync } from './js/sync.js';
     import { initVoice } from './js/tts.js';
     import { refreshBadge } from './js/reminders.js';
+    import { initCapture } from './js/capture.js';
     import './js/today.js';
     import './js/teacher.js';
     import './js/chat.js';
@@ -39,6 +40,7 @@
     import './js/progress.js';
     import './js/settings.js';
     startApp();
+    initCapture();
     await initVoice();
     autoSync();
     refreshBadge();

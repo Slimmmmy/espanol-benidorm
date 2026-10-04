@@ -43,6 +43,7 @@ async function renderList(container) {
 async function render(container) {
   container.innerHTML = `
     <h1>Словарь</h1>
+    <button id="dic-quick" class="ghost">＋ Услышал слово — записать быстро</button>
     <label>Слово или фраза (RU или ES)
       <input id="dic-input" type="text" placeholder="напр. собака или perro" autocapitalize="off">
     </label>
@@ -52,6 +53,7 @@ async function render(container) {
     <h2>Мои слова</h2>
     <div id="dic-list"></div>
   `;
+  container.querySelector('#dic-quick').onclick = () => import('./capture.js').then((m) => m.openCapture());
   const status = container.querySelector('#dic-status');
   const preview = container.querySelector('#dic-preview');
   const inputEl = container.querySelector('#dic-input');

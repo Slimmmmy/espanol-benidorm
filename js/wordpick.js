@@ -22,17 +22,23 @@ export function findExistingWord(words, es) {
   return (words || []).find((w) => stripArticle(w.es) === key) || null;
 }
 
-// Сохранить слово в словарь, если его там ещё нет. Возвращает 'added' | 'exists'.
-export async function saveWord(data) {
+// Сохранить слово в словарь, если его там ещё нет. Возвращает { status: 'added' | 'exists', id }.
+export async function saveWordWithId(data) {
   if (!data || !data.es) throw new Error('Пустое слово.');
-  if (findExistingWord(await getAllWords(), data.es)) return 'exists';
+  const existing = findExistingWord(await getAllWords(), data.es);
+  if (existing) return { status: 'exists', id: existing.id };
   const now = Date.now();
-  await putWord({
+  const id = await putWord({
     es: data.es, ru: data.ru || '', example: data.example || '', exampleRu: data.exampleRu || '',
     pos: data.pos || '', gender: data.gender || '', local: data.local || '', createdAt: now, ...newCard(now),
   });
   await recordActivity('newWord');
-  return 'added';
+  return { status: 'added', id };
+}
+
+// Сохранить слово в словарь, если его там ещё нет. Возвращает 'added' | 'exists'.
+export async function saveWord(data) {
+  return (await saveWordWithId(data)).status;
 }
 
 const SKIP = new Set(['BUTTON', 'TEXTAREA', 'INPUT', 'SELECT', 'SCRIPT', 'STYLE']);

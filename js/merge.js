@@ -1,5 +1,6 @@
 // Слияние снимков данных между устройствами. Чистые функции, без побочных эффектов.
 import { mergeActivity } from './activity.js';
+import { mergeInbox } from './capture.js';
 
 function normEs(s) { return String(s || '').trim().toLowerCase(); }
 
@@ -133,6 +134,7 @@ export function mergeSettings(a, b) {
   }
   if (A.roleplayHistory || B.roleplayHistory) out.roleplayHistory = mergeRoleplay(A.roleplayHistory, B.roleplayHistory);
   if (A.readerPages || B.readerPages) out.readerPages = mergeReaderPages(A.readerPages, B.readerPages);
+  if (A.inbox || B.inbox) out.inbox = mergeInbox(A.inbox, B.inbox);
   for (const key of new Set([...Object.keys(A), ...Object.keys(B)])) {
     if (key.startsWith('activity-')) out[key] = mergeActivity(A[key], B[key]);
     if (key.startsWith('daily-')) {
