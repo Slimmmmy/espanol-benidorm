@@ -27,6 +27,16 @@ export function decide(result) {
   return { action: 'choose', candidates };
 }
 
+// Ссылка быстрой записи: «#capture» — открыть панель, «#capture/слово» — сразу записать слово
+// (так её открывает команда iPhone после диктовки). Возвращает null, если ссылка не про запись.
+export function parseCaptureHash(hash) {
+  const m = String(hash || '').match(/^#capture(?:\/(.*))?$/s);
+  if (!m) return null;
+  let text = m[1] || '';
+  try { text = decodeURIComponent(text.replace(/\+/g, ' ')); } catch (e) { /* оставляем как есть */ }
+  return { text: text.trim() };
+}
+
 export function needsChoice(list) {
   return (list || []).filter((i) => i.status === 'choose').length;
 }
@@ -109,7 +119,9 @@ function itemHtml(it) {
     case 'pending':
       return `<div class="cap-item">${head}<div class="muted">Ищу, что это…</div></div>`;
     case 'offline':
-      return `<div class="cap-item">${head}<div class="muted">Сохранено. Разберу, когда будет интернет.</div>
+      return `<div class="cap-item">${head}<div class="muted">${/API-ключ/.test(it.error || '')
+        ? 'Сохранено. Разберу в основном приложении после синхронизации.'
+        : 'Сохранено. Разберу, когда будет интернет.'}</div>
         <button class="mini" data-retry="${e(it.id)}">Попробовать сейчас</button></div>`;
     case 'empty':
       return `<div class="cap-item">${head}<div class="muted">Не удалось понять, что это за слово. Попробуйте записать иначе или добавить, где услышали.</div>
@@ -263,12 +275,19 @@ export function initCapture() {
       }
     };
   }
-  window.addEventListener('hashchange', () => {
-    if (location.hash === '#capture') { history.replaceState(null, '', '#today'); openSheet(); }
-    refreshFab();
-  });
+  const handleHash = () => {
+    const cap = parseCaptureHash(location.hash);
+    if (!cap) return;
+    history.replaceState(null, '', '#today');
+    openSheet();
+    if (cap.text) {
+      el('cap-status').textContent = `Записал: «${cap.text}»`;
+      submit(cap.text);
+    }
+  };
+  window.addEventListener('hashchange', () => { handleHash(); refreshFab(); });
   window.addEventListener('online', processQueue);
-  if (location.hash === '#capture') openSheet();
+  handleHash();
   refreshFab();
   processQueue();
 }
