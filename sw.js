@@ -1,5 +1,5 @@
 // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
-const CACHE = 'espanol-v20';
+const CACHE = 'espanol-v21';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css', './css/fonts.css',
   './fonts/unbounded-normal-cyrillic.woff2', './fonts/unbounded-normal-latin.woff2',
@@ -28,7 +28,7 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== 'espanol-tts').map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -36,7 +36,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   // К API всегда сеть, его не кэшируем.
-  if (url.hostname.endsWith('anthropic.com')) return;
+  if (url.hostname.endsWith('anthropic.com') || url.hostname.endsWith('googleapis.com')) return;
   e.respondWith(
     caches.match(e.request).then((cached) => cached || fetch(e.request))
   );

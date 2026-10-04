@@ -13,16 +13,16 @@ import { recordStudyDay } from './stats.js';
 import { autoSync } from './sync.js';
 
 export const SCENES = [
-  { id: 'mercadona', icon: '🛒', title: 'Касса в Mercadona', role: 'кассирша Mercadona, приветливая, но торопится', setting: 'вечер, очередь; у ученика карта не проходит, а наличных мелочью мало', goal: 'Оплатить покупки, попросить пакет и уточнить, можно ли оплатить частями (карта + наличные)' },
-  { id: 'casero', icon: '🔧', title: 'Сломался бойлер', role: 'хозяин квартиры (casero), немного ворчливый, говорит быстро', setting: 'телефонный звонок; с утра нет горячей воды', goal: 'Объяснить проблему, договориться, когда придёт мастер (fontanero), и оставить свой номер' },
-  { id: 'bar', icon: '☕', title: 'Завтрак в баре', role: 'официант в баре у пляжа Levante', setting: 'утро, бар полон местных', goal: 'Заказать кофе (café con leche / cortado) и tostada con tomate, спросить цену и попросить счёт' },
-  { id: 'farmacia', icon: '💊', title: 'В аптеке', role: 'фармацевт, внимательная, задаёт уточняющие вопросы', setting: 'аптека в старом городе', goal: 'Описать симптомы (болит горло, температура), узнать, как принимать лекарство' },
-  { id: 'padron', icon: '🏛️', title: 'Empadronamiento в ayuntamiento', role: 'сотрудник ayuntamiento, формальный', setting: 'окно приёма в мэрии Бенидорма', goal: 'Узнать, какие документы нужны для padrón, и записаться (pedir cita)' },
-  { id: 'vecino', icon: '🏠', title: 'Сосед шумит', role: 'сосед по лестничной клетке, дружелюбный пенсионер-валенсиец', setting: 'встреча у лифта', goal: 'Вежливо попросить не шуметь после 23:00 и остаться в хороших отношениях' },
-  { id: 'medico', icon: '🩺', title: 'Запись к врачу', role: 'администратор centro de salud', setting: 'звонок в поликлинику', goal: 'Записаться к врачу (médico de cabecera) на ближайший день, назвать данные tarjeta SIP' },
-  { id: 'playa', icon: '⛱️', title: 'Шезлонг на пляже', role: 'работник пляжа, сдаёт hamacas y sombrillas', setting: 'пляж Poniente, жарко', goal: 'Арендовать два шезлонга и зонт на полдня, узнать цену и до скольки работают' },
-  { id: 'restaurante', icon: '🥘', title: 'Ресторан и аллергия', role: 'официант ресторана с местной кухней', setting: 'ужин; в меню arroz a banda, all i pebre, fideuà', goal: 'Спросить про блюда, предупредить об аллергии на морепродукты и заказать подходящее' },
-  { id: 'tram', icon: '🚋', title: 'Трамвай до Альтеа', role: 'кассир на станции TRAM', setting: 'станция Benidorm Intermodal', goal: 'Купить билет до Altea туда-обратно, узнать время отправления и с какой платформы' },
+  { id: 'mercadona', voice: 'f', icon: '🛒', title: 'Касса в Mercadona', role: 'кассирша Mercadona, приветливая, но торопится', setting: 'вечер, очередь; у ученика карта не проходит, а наличных мелочью мало', goal: 'Оплатить покупки, попросить пакет и уточнить, можно ли оплатить частями (карта + наличные)' },
+  { id: 'casero', voice: 'm', icon: '🔧', title: 'Сломался бойлер', role: 'хозяин квартиры (casero), немного ворчливый, говорит быстро', setting: 'телефонный звонок; с утра нет горячей воды', goal: 'Объяснить проблему, договориться, когда придёт мастер (fontanero), и оставить свой номер' },
+  { id: 'bar', voice: 'm', icon: '☕', title: 'Завтрак в баре', role: 'официант в баре у пляжа Levante', setting: 'утро, бар полон местных', goal: 'Заказать кофе (café con leche / cortado) и tostada con tomate, спросить цену и попросить счёт' },
+  { id: 'farmacia', voice: 'f', icon: '💊', title: 'В аптеке', role: 'фармацевт, внимательная, задаёт уточняющие вопросы', setting: 'аптека в старом городе', goal: 'Описать симптомы (болит горло, температура), узнать, как принимать лекарство' },
+  { id: 'padron', voice: 'm', icon: '🏛️', title: 'Empadronamiento в ayuntamiento', role: 'сотрудник ayuntamiento, формальный', setting: 'окно приёма в мэрии Бенидорма', goal: 'Узнать, какие документы нужны для padrón, и записаться (pedir cita)' },
+  { id: 'vecino', voice: 'm', icon: '🏠', title: 'Сосед шумит', role: 'сосед по лестничной клетке, дружелюбный пенсионер-валенсиец', setting: 'встреча у лифта', goal: 'Вежливо попросить не шуметь после 23:00 и остаться в хороших отношениях' },
+  { id: 'medico', voice: 'f', icon: '🩺', title: 'Запись к врачу', role: 'администраторша centro de salud', setting: 'звонок в поликлинику', goal: 'Записаться к врачу (médico de cabecera) на ближайший день, назвать данные tarjeta SIP' },
+  { id: 'playa', voice: 'm', icon: '⛱️', title: 'Шезлонг на пляже', role: 'работник пляжа, сдаёт hamacas y sombrillas', setting: 'пляж Poniente, жарко', goal: 'Арендовать два шезлонга и зонт на полдня, узнать цену и до скольки работают' },
+  { id: 'restaurante', voice: 'm', icon: '🥘', title: 'Ресторан и аллергия', role: 'официант ресторана с местной кухней', setting: 'ужин; в меню arroz a banda, all i pebre, fideuà', goal: 'Спросить про блюда, предупредить об аллергии на морепродукты и заказать подходящее' },
+  { id: 'tram', voice: 'f', icon: '🚋', title: 'Трамвай до Альтеа', role: 'кассирша на станции TRAM', setting: 'станция Benidorm Intermodal', goal: 'Купить билет до Altea туда-обратно, узнать время отправления и с какой платформы' },
 ];
 
 let scene = null;
@@ -51,7 +51,7 @@ function renderLog(container, typing = false) {
   const log = container.querySelector('#rp-log');
   if (!log) return;
   log.innerHTML = bubblesHtml() + (typing ? '<div class="chat-msg chat-bot chat-typing">…</div>' : '');
-  log.querySelectorAll('[data-say]').forEach((b) => { b.onclick = () => speak(history[Number(b.dataset.say)].es); });
+  log.querySelectorAll('[data-say]').forEach((b) => { b.onclick = () => speak(history[Number(b.dataset.say)].es, 'es-ES', { gender: scene.voice }); });
   log.querySelectorAll('[data-tr]').forEach((b) => { b.onclick = () => log.querySelector(`[data-ru="${b.dataset.tr}"]`).classList.toggle('hidden'); });
   log.querySelectorAll('[data-hint]').forEach((b) => { b.onclick = () => log.querySelector(`[data-hintbox="${b.dataset.hint}"]`).classList.toggle('hidden'); });
   log.querySelectorAll('.rp-es').forEach((el) => enableWordPick(el));
@@ -64,7 +64,7 @@ async function aiTurn(container) {
   const r = await roleplayReply(scene, history.map((m) => ({ role: m.role, content: m.content })));
   const msg = { role: 'assistant', content: JSON.stringify(r), es: r.es || '', ru: r.ru || '', hint: r.hint || '' };
   history.push(msg);
-  if ((await getSetting('rpAutoSpeak')) !== false) speak(msg.es);
+  if ((await getSetting('rpAutoSpeak')) !== false) speak(msg.es, 'es-ES', { gender: scene.voice });
   if (r.end) finished = true;
 }
 
