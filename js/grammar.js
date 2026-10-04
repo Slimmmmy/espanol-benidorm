@@ -1,6 +1,8 @@
 import { registerFeature } from './app.js';
 import { checkGrammar } from './claude.js';
-import { addMistake } from './db.js';
+import { logMistakes } from './mistakes.js';
+import { recordActivity } from './activity.js';
+import { recordStudyDay } from './stats.js';
 import { escapeHtml } from './util.js';
 
 async function check(container) {
@@ -23,8 +25,10 @@ async function check(container) {
         ${r.topic ? `<div class="word-local">📌 Тема: ${e(r.topic)}</div>` : ''}
       </div>`;
     if (r.ok === false) {
-      await addMistake({ phrase: input, corrected: r.corrected || '', topic: r.topic || '', createdAt: Date.now() });
+      await logMistakes([{ phrase: input, corrected: r.corrected || '', topic: r.topic || '' }], 'grammar');
     }
+    await recordActivity('grammar');
+    await recordStudyDay();
   } catch (err) {
     const s = container.querySelector('#gr-status');
     if (s) s.textContent = err.message;

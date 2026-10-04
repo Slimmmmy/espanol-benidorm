@@ -19,11 +19,13 @@
     import { startApp } from './js/app.js';
     import { autoSync } from './js/sync.js';
     import { initVoice } from './js/tts.js';
+    import { refreshBadge } from './js/reminders.js';
     import './js/today.js';
     import './js/teacher.js';
     import './js/chat.js';
     import './js/study.js';
     import './js/daily.js';
+    import './js/roleplay.js';
     import './js/dictionary.js';
     import './js/listening.js';
     import './js/speech.js';
@@ -34,6 +36,7 @@
     startApp();
     await initVoice();
     autoSync();
+    refreshBadge();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }

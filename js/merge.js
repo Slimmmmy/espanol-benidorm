@@ -1,10 +1,17 @@
 // Слияние снимков данных между устройствами. Чистые функции, без побочных эффектов.
+import { mergeActivity } from './activity.js';
 
 function normEs(s) { return String(s || '').trim().toLowerCase(); }
 
 function freshness(w) { return [w.reps || 0, w.due || 0, w.createdAt || 0]; }
 
+// Карточка с более поздним повтором — свежее (FSRS); для старых карточек — по числу повторов.
 function fresher(a, b) {
+  if ((a.lastReview || 0) !== (b.lastReview || 0)) return (a.lastReview || 0) > (b.lastReview || 0) ? a : b;
+  return fresherLegacy(a, b);
+}
+
+function fresherLegacy(a, b) {
   const fa = freshness(a), fb = freshness(b);
   for (let i = 0; i < fa.length; i++) {
     if (fa[i] !== fb[i]) return fa[i] > fb[i] ? a : b;
@@ -92,6 +99,15 @@ function mergeMemory(a, b) {
   return out.slice(-50);
 }
 
+function mergeRoleplay(a, b) {
+  const map = new Map();
+  for (const r of [...(a || []), ...(b || [])]) {
+    const k = `${r.scene}|${r.date}`;
+    if (!map.has(k)) map.set(k, r);
+  }
+  return [...map.values()].sort((x, y) => (x.date || 0) - (y.date || 0)).slice(-100);
+}
+
 export function mergeSettings(a, b) {
   const A = a || {}, B = b || {};
   const out = { ...B, ...A };
@@ -105,7 +121,9 @@ export function mergeSettings(a, b) {
   if (ta || tb) {
     out.teacherProfile = ((ta && ta.updatedAt) || 0) >= ((tb && tb.updatedAt) || 0) ? (ta || tb) : (tb || ta);
   }
+  if (A.roleplayHistory || B.roleplayHistory) out.roleplayHistory = mergeRoleplay(A.roleplayHistory, B.roleplayHistory);
   for (const key of new Set([...Object.keys(A), ...Object.keys(B)])) {
+    if (key.startsWith('activity-')) out[key] = mergeActivity(A[key], B[key]);
     if (key.startsWith('daily-')) {
       const da = A[key], db = B[key];
       out[key] = (da && db) ? (addedCount(da) >= addedCount(db) ? da : db) : (da || db);

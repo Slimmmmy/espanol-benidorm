@@ -50,13 +50,18 @@ function currentVoice() {
   return pickBestVoice(speechSynthesis.getVoices(), preferredVoiceURI);
 }
 
-export function speak(text, lang = 'es-ES') {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
+export function canSpeak() {
+  return typeof window !== 'undefined' && 'speechSynthesis' in window;
+}
+
+// opts.slow — замедленное воспроизведение (для разбора на слух).
+export function speak(text, lang = 'es-ES', opts = {}) {
+  if (!canSpeak()) return false;
   const u = new SpeechSynthesisUtterance(text);
   u.lang = lang;
   const v = currentVoice();
   if (v) u.voice = v;
-  u.rate = voiceRate;
+  u.rate = opts.slow ? Math.max(0.5, voiceRate * 0.7) : voiceRate;
   speechSynthesis.cancel();
   speechSynthesis.speak(u);
   return true;
@@ -66,7 +71,7 @@ export function stopSpeaking() {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) speechSynthesis.cancel();
 }
 
-export function speakSequence(lines, lang = 'es-ES') {
+export function speakSequence(lines, lang = 'es-ES', opts = {}) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const voice = currentVoice();
@@ -82,7 +87,7 @@ export function speakSequence(lines, lang = 'es-ES') {
     const u = new SpeechSynthesisUtterance(line.es);
     u.lang = lang;
     if (voice) u.voice = voice;
-    u.rate = voiceRate;
+    u.rate = opts.slow ? Math.max(0.5, voiceRate * 0.7) : voiceRate;
     u.pitch = pitchFor(line.speaker);
     speechSynthesis.speak(u);
   }

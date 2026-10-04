@@ -5,25 +5,37 @@ export function dayKey(ts) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function prevKey(key) {
-  const d = new Date(key + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
+const dayNum = (key) => Math.round(Date.parse(key + 'T00:00:00Z') / 86400000);
+export const MAX_FREEZES = 2;
+export const FREEZE_EVERY = 7;
+
+// Серия занятий. С заморозками: каждые 7 дней серии дают ❄️ (максимум 2),
+// и один пропущенный день «съедает» заморозку вместо того, чтобы обнулить серию.
+export function computeStreakInfo(days, today, { allowFreeze = true } = {}) {
+  const nums = [...new Set(days || [])].map(dayNum).filter(Number.isFinite).sort((a, b) => a - b);
+  let streak = 0;
+  let freezes = 0;
+  let prev = null;
+  for (const d of nums) {
+    if (prev === null) streak = 1;
+    else {
+      const missed = d - prev - 1;
+      if (missed <= 0) streak++;
+      else if (allowFreeze && missed <= freezes) { freezes -= missed; streak++; }
+      else { streak = 1; freezes = 0; }
+    }
+    if (allowFreeze && streak % FREEZE_EVERY === 0) freezes = Math.min(MAX_FREEZES, freezes + 1);
+    prev = d;
+  }
+  if (prev === null) return { streak: 0, freezes: 0, atRisk: false };
+  const missedNow = dayNum(today) - prev - 1;
+  if (missedNow <= 0) return { streak, freezes, atRisk: missedNow === 0 };
+  if (allowFreeze && missedNow <= freezes) return { streak, freezes: freezes - missedNow, atRisk: true };
+  return { streak: 0, freezes: 0, atRisk: false };
 }
 
 export function computeStreak(days, today) {
-  const set = new Set(days);
-  let cursor = today;
-  if (!set.has(cursor)) {
-    cursor = prevKey(cursor);
-    if (!set.has(cursor)) return 0;
-  }
-  let streak = 0;
-  while (set.has(cursor)) {
-    streak++;
-    cursor = prevKey(cursor);
-  }
-  return streak;
+  return computeStreakInfo(days, today, { allowFreeze: false }).streak;
 }
 
 export async function recordStudyDay(now = Date.now()) {
@@ -50,5 +62,6 @@ export async function getStats() {
   const weak = Object.entries(topicMap)
     .sort((a, b) => b[1] - a[1])
     .map(([topic, count]) => ({ topic, count }));
-  return { words: words.length, learned, due, streak: computeStreak(days, dayKey(now)), weak };
+  const info = computeStreakInfo(days, dayKey(now));
+  return { words: words.length, learned, due, streak: info.streak, freezes: info.freezes, streakAtRisk: info.atRisk, weak };
 }

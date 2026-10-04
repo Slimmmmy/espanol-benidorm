@@ -56,9 +56,14 @@ export function similarity(a, b) {
   return 1 - levenshtein(x, y) / Math.max(x.length, y.length);
 }
 
-export function recentMessages(history, max = 20) {
-  const arr = (Array.isArray(history) ? history : [])
-    .slice(-max)
+// Окно последних сообщений для API. step > 1 сдвигает начало окна «ступеньками»,
+// чтобы начало запроса долго не менялось и срабатывал кэш промпта.
+export function recentMessages(history, max = 20, step = 1) {
+  const all = Array.isArray(history) ? history : [];
+  const s = Math.max(1, Math.min(step, max));
+  const start = all.length > max ? Math.ceil((all.length - max) / s) * s : 0;
+  const arr = all
+    .slice(start)
     .map((m) => ({ role: m.role, content: m.content }));
   while (arr.length && arr[0].role !== 'user') arr.shift();
   const out = [];
