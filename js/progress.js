@@ -4,6 +4,7 @@ import { exportAll, getAllMistakes } from './db.js';
 import { lastNDays } from './activity.js';
 import { forecastDue } from './queue.js';
 import { escapeHtml } from './util.js';
+import { icon } from './icons.js';
 
 const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
@@ -87,7 +88,7 @@ async function render(container) {
   container.innerHTML = `
     <h1>Прогресс</h1>
     <div class="stats-grid">
-      <div class="stat"><div class="stat-num">${s.streak}</div><div class="stat-lbl">дней подряд 🔥${s.freezes ? ` · ${'❄️'.repeat(s.freezes)}` : ''}</div></div>
+      <div class="stat"><div class="stat-num">${s.streak}</div><div class="stat-lbl">дней подряд${s.freezes ? ` · <span class="stat-ice" title="Заморозки серии">${icon('snow', 'ic ic-sm').repeat(s.freezes)}</span>` : ''}</div></div>
       <div class="stat"><div class="stat-num">${s.words}</div><div class="stat-lbl">слов в словаре</div></div>
       <div class="stat"><div class="stat-num">${s.learned}</div><div class="stat-lbl">выучено</div></div>
       <div class="stat"><div class="stat-num">${accuracy === null ? '—' : accuracy + '%'}</div><div class="stat-lbl">вспоминаешь (14 дн.)</div></div>

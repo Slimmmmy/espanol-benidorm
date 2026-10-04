@@ -9,6 +9,7 @@ import { escapeHtml } from './util.js';
 import { recordStudyDay } from './stats.js';
 import { recordActivity } from './activity.js';
 import { getLimits, refreshBadge } from './reminders.js';
+import { icon } from './icons.js';
 
 let queue = [];
 let current = null;
@@ -67,9 +68,9 @@ function frontHtml(w, type) {
   const e = escapeHtml;
   switch (type) {
     case 'es-ru':
-      return `<div class="study-front"><b>${e(w.es)}</b></div><button id="study-hear">🔊</button>`;
+      return `<div class="study-front es"><b>${e(w.es)}</b></div><button id="study-hear">🔊 Послушать</button>`;
     case 'listen':
-      return '<div class="study-front">🎧</div><button id="study-hear">🔊 Прослушать ещё раз</button>';
+      return `<div class="study-listen">${icon('listening')}</div><button id="study-hear">🔊 Прослушать ещё раз</button>`;
     case 'type':
       return `<div class="study-front"><b>${e(w.ru)}</b></div>
         <input id="study-input" type="text" placeholder="Напиши по-испански…" autocapitalize="off" autocomplete="off">
