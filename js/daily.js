@@ -5,6 +5,9 @@ import { newCard } from './srs.js';
 import { dayKey, recordStudyDay } from './stats.js';
 import { speak } from './tts.js';
 import { escapeHtml } from './util.js';
+import { enableWordPick } from './wordpick.js';
+import { logMistakes } from './mistakes.js';
+import { recordActivity } from './activity.js';
 
 function todayKey() { return `daily-${dayKey(Date.now())}`; }
 
@@ -63,6 +66,7 @@ async function render(container) {
     status.className = 'status daily-progress';
     status.textContent = `Добавлено ${added}/5`;
     container.querySelector('#dly-list').innerHTML = set.words.map((w, i) => cardHtml(w, i)).join('');
+    container.querySelectorAll('#dly-list .word-ex').forEach((el) => enableWordPick(el));
     wire();
   }
 
@@ -116,6 +120,8 @@ async function render(container) {
             <div class="${isOk ? 'gr-ok' : 'gr-bad'}">${isOk ? '✅ Верно' : '✏️ Поправим'}</div>
             ${r.corrected ? `<div class="word-ex"><b>${e(r.corrected)}</b></div>` : ''}
             ${r.explanation ? `<div class="word-ex">${e(r.explanation)}</div>` : ''}`;
+          if (!isOk) await logMistakes([{ phrase: sentence, corrected: r.corrected || '', topic: r.topic || '' }], 'daily');
+          await recordActivity('grammar');
         } catch (err) {
           const box = list.querySelector(`[data-fb="${i}"]`);
           if (box) box.textContent = err.message;

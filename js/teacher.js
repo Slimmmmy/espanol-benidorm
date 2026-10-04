@@ -2,6 +2,10 @@ import { registerFeature } from './app.js';
 import { buildProfile, saveProfileNote, recordLesson, getCourse, saveCourse, markUnitDone, nextUnit } from './profile.js';
 import { generateLesson, reviewLesson, generateCourse } from './claude.js';
 import { escapeHtml } from './util.js';
+import { enableWordPick } from './wordpick.js';
+import { logMistakes, mistakesFromLesson } from './mistakes.js';
+import { recordActivity } from './activity.js';
+import { recordStudyDay } from './stats.js';
 
 const DEFAULT_GOAL = 'Разговорный бытовой испанский для повседневной жизни в районе Бенидорма';
 let lesson = null;
@@ -47,6 +51,8 @@ function renderLesson(container) {
     <p id="tch-status" class="status"></p>
     <div id="tch-results"></div>
   `;
+  enableWordPick(container.querySelector('.study-card'));
+  container.querySelectorAll('.ex-prompt').forEach((el) => enableWordPick(el));
   container.querySelector('#tch-check').onclick = () => checkLesson(container);
   container.querySelector('#tch-cancel').onclick = () => render(container);
 }
@@ -76,6 +82,10 @@ async function checkLesson(container) {
       </div>
       <button id="tch-back">К программе</button>
     `;
+    enableWordPick(container.querySelector('#tch-results'));
+    await logMistakes(mistakesFromLesson(lesson, answers, resList));
+    await recordActivity('lesson');
+    await recordStudyDay();
     await saveProfileNote(r.profileNote || '', lesson.topic);
     await recordLesson({ topic: lesson.topic, date: Date.now(), score });
     if (currentUnitId) await markUnitDone(currentUnitId, score);

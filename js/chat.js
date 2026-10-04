@@ -6,16 +6,22 @@ import { autoSync } from './sync.js';
 import { escapeHtml, renderMarkdown } from './util.js';
 import { recognizeOnce } from './asr.js';
 import { speak } from './tts.js';
+import { enableWordPick } from './wordpick.js';
+import { logMistakes } from './mistakes.js';
+import { recordActivity } from './activity.js';
+import { getStats } from './stats.js';
 
 let busy = false;
+let profileSnapshot = null; // профиль фиксируется на время беседы — стабильное начало запроса для кэша
 
 async function getHistory() { return (await getSetting('chatHistory')) || []; }
-async function saveHistory(h) { await setSetting('chatHistory', h.slice(-60)); }
+// Обрезаем историю «ступенькой» (до 60, когда набралось 80): начало окна для API меняется редко.
+async function saveHistory(h) { await setSetting('chatHistory', h.length > 80 ? h.slice(-60) : h); }
 
 function bubblesHtml(history) {
   const e = escapeHtml;
   if (!history.length) {
-    return '<p class="status">Привет! Я твой наставник по испанскому. Спроси что угодно — объясню, помогу, потренирую. Можешь писать или говорить (🎤) по-испански.</p>';
+    return '<p class="status">Привет! Я твой наставник по испанскому. Спроси что угодно — объясню, помогу, потренирую. Можешь писать или говорить (🎤) по-испански. Нажми на испанское слово в моём ответе — покажу перевод и добавлю в словарь.</p>';
   }
   return history.map((m, i) => {
     if (m.role === 'user') {
@@ -37,18 +43,19 @@ function renderLog(container, history, typing) {
   log.querySelectorAll('[data-say]').forEach((b) => {
     b.onclick = () => { const m = history[Number(b.dataset.say)]; if (m) speak(m.content); };
   });
+  log.querySelectorAll('.chat-bot').forEach((el) => enableWordPick(el));
   scrollBottom();
 }
 
 async function refreshMemory(userMsg, assistantMsg) {
   try {
     const existing = await getMemory();
-    const r = await extractMemory(existing, userMsg, assistantMsg);
-    if (r && Array.isArray(r.notes)) {
-      await saveMemory(r.notes);
-      autoSync();
-    }
-  } catch (e) { /* тихо: память — необязательная функция */ }
+    const topics = (await getStats()).weak.slice(0, 15).map((w) => w.topic);
+    const r = await extractMemory(existing, userMsg, assistantMsg, topics);
+    if (r && Array.isArray(r.mistakes) && r.mistakes.length) await logMistakes(r.mistakes, 'chat');
+    if (r && Array.isArray(r.notes)) await saveMemory(r.notes);
+    autoSync();
+  } catch (e) { /* тихо: память и журнал ошибок — необязательные функции */ }
 }
 
 async function voiceInput(container) {
@@ -88,10 +95,11 @@ async function send(container, opts = {}) {
     history.push({ role: 'user', content: text, ts: Date.now(), ...(opts.voice ? { voice: true } : {}) });
     await saveHistory(history);
     renderLog(container, history, true);
-    const profile = await buildProfile();
-    const reply = await chatReply(history, profile, opts);
+    if (!profileSnapshot) profileSnapshot = await buildProfile();
+    const reply = await chatReply(history, profileSnapshot, opts);
     history.push({ role: 'assistant', content: reply, ts: Date.now() });
     await saveHistory(history);
+    await recordActivity('chat');
     autoSync(); // тихо отправить новую переписку в облако (если синхронизация настроена)
     refreshMemory(text, reply);
     if (!container.querySelector('#chat-log')) return;
@@ -106,6 +114,7 @@ async function send(container, opts = {}) {
 }
 
 async function render(container) {
+  profileSnapshot = null;
   container.innerHTML = `
     <h1>Наставник</h1>
     <div id="chat-log" class="chat-log"></div>

@@ -1,4 +1,8 @@
 // Однократное распознавание речи через Web Speech API (лучше всего в Chrome).
+export function canRecognize() {
+  return typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
 export function recognizeOnce(lang = 'es-ES') {
   return new Promise((resolve, reject) => {
     const SR = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);

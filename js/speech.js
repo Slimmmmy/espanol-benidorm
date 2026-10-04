@@ -3,6 +3,7 @@ import { recognizeOnce } from './asr.js';
 import { gradeSpeech } from './claude.js';
 import { speak } from './tts.js';
 import { similarity, escapeHtml } from './util.js';
+import { recordActivity } from './activity.js';
 
 const PHRASES = [
   'El perro de San Roque no tiene rabo.',
@@ -54,6 +55,7 @@ async function render(container) {
       const target = PHRASES[idx];
       const heard = await recognizeOnce();
       const s = similarity(target, heard);
+      recordActivity('speech');
       if (!container.querySelector('#sp-result')) return;
       status.textContent = '';
       result.innerHTML = `

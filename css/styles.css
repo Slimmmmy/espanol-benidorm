@@ -252,3 +252,77 @@ button.ok { background: linear-gradient(135deg, #34d399, #10b981); color: #052e2
 .md-h { font-weight: 700; margin: 10px 0 4px; color: #fff; }
 .md-h:first-child { margin-top: 0; }
 .chat-say { display: inline-block; margin-top: 6px; }
+
+/* ── Повторение: типы карточек и 4 оценки ───────────── */
+button.ghost { background: transparent; border: 1px solid var(--border); color: var(--fg); }
+button.hard { background: linear-gradient(135deg, #f59e0b, #d97706); color: #2b1600; }
+button.mini { margin: 0 0 0 4px; padding: 3px 8px; font-size: 13px; background: transparent; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; }
+.study-type { color: var(--accent-2); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; text-align: center; }
+.study-ru { text-align: center; color: #c9cde6; font-size: 17px; margin-bottom: 6px; }
+.study-cloze { font-size: 19px; line-height: 1.5; text-align: center; margin: 16px 0 6px; }
+.study-hint { text-align: center; font-size: 14px; }
+.grade-4 button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; font-size: 14px; min-width: 0; }
+.grade-4 button small { font-size: 11px; font-weight: 600; opacity: .8; }
+.grade-4 button.suggested { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.55); }
+
+/* ── Цель дня ───────────────────────────────────────── */
+.goal-title { font-weight: 800; font-size: 17px; }
+.goal-bar { height: 8px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); margin: 10px 0 6px; overflow: hidden; }
+.goal-bar span { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .4s ease; }
+.goal-complete { border-color: var(--ok); box-shadow: 0 0 0 2px rgba(52, 211, 153, .25), var(--shadow); }
+.goal-step { display: flex; align-items: center; gap: 12px; width: 100%; margin: 8px 0 0; padding: 10px 12px; text-align: left; background: var(--card); border: 1px solid var(--border); color: var(--fg); font-weight: 400; }
+.goal-step.done { opacity: .7; }
+.goal-check { width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--accent); display: grid; place-items: center; font-weight: 800; color: #052e22; }
+.goal-step.done .goal-check { background: var(--ok); border-color: var(--ok); }
+.goal-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.goal-text .muted { font-size: 13px; }
+.streak-note { font-size: 12px; margin-top: 4px; }
+
+/* ── Графики ────────────────────────────────────────── */
+.chart-card .muted { font-size: 13px; }
+.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+.chart .bar { fill: var(--accent); }
+.chart .bar-hit { fill: transparent; }
+.chart .bar-g:hover .bar { fill: var(--accent-2); }
+.chart .chart-base { stroke: var(--border); stroke-width: 1; }
+.chart .bar-lbl { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+.chart .bar-val { fill: var(--fg); font-size: 11px; font-weight: 700; text-anchor: middle; }
+.mini-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+.mini-table th, .mini-table td { text-align: left; padding: 5px 4px; border-bottom: 1px solid var(--border); }
+.mini-table th { color: var(--muted); font-weight: 600; }
+
+/* ── Аудио: диктант ─────────────────────────────────── */
+.dlg-btns { white-space: nowrap; }
+.dict-row { margin: 14px 0; }
+.dict-row input { margin-top: 6px; }
+.dict-res { margin-top: 6px; line-height: 1.6; }
+.dict-ok { color: var(--ok); }
+.dict-miss { color: var(--warn); text-decoration: underline dotted; }
+
+/* ── Слово по нажатию ───────────────────────────────── */
+.wp { cursor: pointer; border-radius: 4px; transition: background .12s; }
+.wp:hover { background: rgba(124, 108, 255, 0.22); }
+#wp-pop { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, 0.45); opacity: 0; pointer-events: none; transition: opacity .2s; display: flex; align-items: flex-end; }
+#wp-pop.open { opacity: 1; pointer-events: auto; }
+.wp-panel { width: 100%; max-width: 680px; margin: 0 auto; background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--border); border-top-left-radius: 22px; border-top-right-radius: 22px; padding: 16px 16px calc(env(safe-area-inset-bottom) + 20px); box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5); }
+.wp-head { display: flex; justify-content: space-between; align-items: center; font-size: 19px; }
+.wp-x { margin: 0; padding: 6px 12px; background: transparent; border: 1px solid var(--border); }
+
+/* ── Сценки ─────────────────────────────────────────── */
+.rp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.rp-scene { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 14px; background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--border); color: var(--fg); }
+.rp-icon { font-size: 26px; }
+.rp-title { font-weight: 700; font-size: 15px; }
+.rp-best { font-size: 12px; }
+.rp-es { font-size: 16px; }
+.rp-tools { margin-top: 6px; }
+.rp-tools .mini:first-child { margin-left: 0; }
+.rp-ru, .rp-hint { margin-top: 6px; font-size: 14px; }
+.rp-hint { color: #e3d6ff; }
+.rp-score { font-size: 19px; font-weight: 800; }
+.rp-word { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.check-row { display: flex; align-items: center; gap: 10px; color: var(--fg); font-size: 15px; }
+.check-row input { width: auto; margin: 0; }
+@media (max-width: 360px) { .rp-grid { grid-template-columns: 1fr; } }
+
+.chat-bar.hidden { display: none; }

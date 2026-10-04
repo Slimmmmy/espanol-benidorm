@@ -2,6 +2,10 @@ import { registerFeature } from './app.js';
 import { buildProfile, getAssignments, saveAssignments, partitionAssignments } from './profile.js';
 import { generateAssignment, checkAssignment } from './claude.js';
 import { escapeHtml } from './util.js';
+import { enableWordPick } from './wordpick.js';
+import { logMistakes } from './mistakes.js';
+import { recordActivity } from './activity.js';
+import { recordStudyDay } from './stats.js';
 
 let busy = false;
 
@@ -67,6 +71,9 @@ async function submit(container, id) {
     a.ok = !!r.ok;
     a.doneAt = Date.now();
     await saveAssignments(list);
+    if (!a.ok) await logMistakes([{ phrase: answer, corrected: r.corrected || '', topic: r.topic || a.topic || '' }], 'assignment');
+    await recordActivity('assignment');
+    await recordStudyDay();
     if (!container.querySelector('#asg-list')) return;
     await render(container);
   } catch (err) {
@@ -92,6 +99,7 @@ async function render(container) {
       ${done.length ? `<details class="tch-extra"><summary>Выполненные (${done.length})</summary>${done.slice().reverse().map(doneHtml).join('')}</details>` : ''}
     </div>
   `;
+  container.querySelectorAll('#asg-list .word-ex').forEach((el) => enableWordPick(el));
   container.querySelector('#asg-new').onclick = () => newAssignment(container);
   container.querySelectorAll('[data-submit]').forEach((b) => { b.onclick = () => submit(container, b.dataset.submit); });
 }
