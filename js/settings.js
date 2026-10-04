@@ -133,7 +133,7 @@ async function render(container) {
           <li>Откройте console.cloud.google.com и создайте проект.</li>
           <li>Подключите платёжный аккаунт (Billing). Первый миллион символов в месяц для голосов Chirp 3 HD бесплатный, это очень много.</li>
           <li>В «APIs &amp; Services → Library» найдите <b>Cloud Text-to-Speech API</b> и нажмите Enable.</li>
-          <li>В «APIs &amp; Services → Credentials» нажмите Create credentials → API key.</li>
+          <li>В «APIs &amp; Services → Credentials» нажмите Create credentials → API key. Ключ должен начинаться с <b>AIza</b>. Ключи из Google AI Studio (для Gemini) для озвучки не подходят.</li>
           <li>Ограничьте ключ: API restrictions → только Cloud Text-to-Speech API; Website restrictions → адрес вашего приложения.</li>
           <li>Вставьте ключ сюда и нажмите «Сохранить».</li>
         </ol>

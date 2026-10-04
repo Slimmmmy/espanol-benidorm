@@ -126,6 +126,9 @@ function b64ToBlob(b64) {
 function googleError(status, body) {
   const reason = JSON.stringify(body || '');
   if (status === 400 && /API_KEY_INVALID|API key not valid/.test(reason)) return 'Неверный ключ Google. Проверьте его в Настройках.';
+  if (status === 401 || /API keys are not supported|ACCESS_TOKEN_TYPE_UNSUPPORTED/.test(reason)) {
+    return 'Этот ключ не подходит для озвучки: похоже, он из Google AI Studio (для Gemini). Нужен ключ из Google Cloud Console → APIs & Services → Credentials (начинается с AIza).';
+  }
   if (status === 403 && /SERVICE_DISABLED|has not been used|disabled/i.test(reason)) return 'В проекте Google не включён Cloud Text-to-Speech API.';
   if (status === 403 && /billing/i.test(reason)) return 'В проекте Google не подключён платёжный аккаунт (нужен даже для бесплатного лимита).';
   if (status === 403) return 'Google отклонил запрос: проверьте ограничения ключа (сайт и API).';
