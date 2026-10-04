@@ -1,28 +1,9 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    html, body { margin: 0; padding: 0; }
-    .icon {
-      width: 512px; height: 512px;
-      display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, #7c6cff 0%, #b06cff 60%, #d36cff 100%);
-      font-family: -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif;
-      position: relative; overflow: hidden;
-    }
-    .icon::after {
-      content: ""; position: absolute; inset: 0;
-      background: radial-gradient(420px 300px at 50% -10%, rgba(255,255,255,.28), rgba(255,255,255,0));
-    }
-    .glyph {
-      position: relative; z-index: 1;
-      font-size: 320px; font-weight: 800; color: #fff; line-height: 1;
-      text-shadow: 0 14px 44px rgba(20,8,60,.35);
-    }
-  </style>
-</head>
-<body>
-  <div class="icon"><span class="glyph">ñ</span></div>
-</body>
-</html>
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:F;src:url('../fonts/fraunces-italic-latin.woff2');font-style:italic;font-weight:500 700}
+html,body{margin:0}
+.i{width:512px;height:512px;position:relative;overflow:hidden;background:radial-gradient(420px 360px at 50% 20%,#17405c,#0b1724 72%)}
+.t{position:absolute;inset:0;background-color:rgba(76,198,214,.28);
+-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 44 44'%3E%3Cg fill='none' stroke='%23000' stroke-width='1.3'%3E%3Cpath d='M22 5 39 22 22 39 5 22Z'/%3E%3Ccircle cx='22' cy='22' r='5.5'/%3E%3Cpath d='M0 0q11 11 22 0M22 0q11 11 22 0M0 44q11-11 22 0M22 44q11-11 22 0M0 0q11 11 0 22M0 22q11 11 0 22M44 0q-11 11 0 22M44 22q-11 11 0 22'/%3E%3C/g%3E%3C/svg%3E");-webkit-mask-size:128px 128px;-webkit-mask-position:0 0}
+.f{position:absolute;inset:0;background:radial-gradient(closest-side,rgba(11,23,36,.92) 55%,rgba(11,23,36,0) 100%);}
+.n{position:absolute;inset:0;display:grid;place-items:center;font:italic 600 330px/1 F,serif;color:#ff8a3d;padding-bottom:40px}
+</style></head><body><div class="i"><div class="t"></div><div class="f"></div><div class="n">ñ</div></div></body></html>

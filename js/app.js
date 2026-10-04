@@ -1,5 +1,14 @@
 // Реестр экранов + hash-роутер + нижняя навигация (5 главных + «Ещё»).
+import { icon, hasIcon } from './icons.js';
+
 const features = [];
+// Испанское название раздела — показывается мелкой строкой над заголовком экрана.
+const ES_NAMES = {
+  today: 'Hoy', teacher: 'El profesor', chat: 'Charla', study: 'Repaso', daily: 'Palabras del día',
+  roleplay: 'Escenas', dictionary: 'Diccionario', listening: 'Escuchar', speech: 'Pronunciación',
+  grammar: 'Gramática', assignments: 'Deberes', progress: 'Progreso', settings: 'Ajustes',
+};
+const iconFor = (f, cls) => (hasIcon(f.id) ? icon(f.id, cls) : `<span class="${cls}">${f.icon}</span>`);
 const PRIMARY_COUNT = 5;
 
 export function registerFeature(feature) {
@@ -19,7 +28,7 @@ function navButton(f, activeId) {
   const btn = document.createElement('a');
   btn.className = 'nav-btn' + (f.id === activeId ? ' active' : '');
   btn.href = `#${f.id}`;
-  btn.innerHTML = `<span class="nav-icon">${f.icon}</span><span class="nav-label">${f.title}</span>`;
+  btn.innerHTML = `${iconFor(f, 'nav-icon')}<span class="nav-label">${f.title}</span>`;
   btn.addEventListener('click', closeSheet);
   return btn;
 }
@@ -33,7 +42,7 @@ function renderSheet(more, activeId) {
     sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
   }
   sheet.innerHTML = `<div class="more-panel"><div class="more-grip"></div>${
-    more.map((f) => `<a class="more-item${f.id === activeId ? ' active' : ''}" href="#${f.id}"><span class="more-icon">${f.icon}</span><span>${f.title}</span></a>`).join('')
+    more.map((f) => `<a class="more-item${f.id === activeId ? ' active' : ''}" href="#${f.id}">${iconFor(f, 'more-icon')}<span>${f.title}</span><span class="more-es">${ES_NAMES[f.id] || ''}</span></a>`).join('')
   }</div>`;
   sheet.querySelectorAll('.more-item').forEach((a) => a.addEventListener('click', closeSheet));
 }
@@ -50,7 +59,7 @@ function renderNav(activeId) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'nav-btn nav-more' + (moreActive ? ' active' : '');
-    btn.innerHTML = `<span class="nav-icon">⋯</span><span class="nav-label">Ещё</span>`;
+    btn.innerHTML = `${icon('more', 'nav-icon')}<span class="nav-label">Ещё</span>`;
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       renderSheet(more, activeId);
@@ -70,6 +79,12 @@ async function renderRoute() {
   renderNav(feature.id);
   const screen = document.getElementById('screen');
   screen.innerHTML = '';
+  screen.dataset.es = ES_NAMES[feature.id] || '';
+  screen.dataset.screen = feature.id;
+  screen.classList.remove('enter');
+  void screen.offsetWidth; // перезапуск анимации появления
+  screen.classList.add('enter');
+  window.scrollTo(0, 0);
   await feature.render(screen);
 }
 

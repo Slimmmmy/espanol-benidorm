@@ -1,7 +1,11 @@
 // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
-const CACHE = 'espanol-v19';
+const CACHE = 'espanol-v20';
 const SHELL = [
-  './', './index.html', './manifest.webmanifest', './css/styles.css',
+  './', './index.html', './manifest.webmanifest', './css/styles.css', './css/fonts.css',
+  './fonts/unbounded-normal-cyrillic.woff2', './fonts/unbounded-normal-latin.woff2',
+  './fonts/onest-normal-cyrillic.woff2', './fonts/onest-normal-latin.woff2',
+  './fonts/fraunces-normal-latin.woff2', './fonts/fraunces-italic-latin.woff2',
+  './js/icons.js',
   './sw.js',
   './js/app.js', './js/db.js', './js/claude.js', './js/prompts.js',
   './js/lang.js', './js/settings.js',
