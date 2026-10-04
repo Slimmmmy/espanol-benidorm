@@ -1,5 +1,5 @@
 // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
-const CACHE = 'espanol-v21';
+const CACHE = 'espanol-v22';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css', './css/fonts.css',
   './fonts/unbounded-normal-cyrillic.woff2', './fonts/unbounded-normal-latin.woff2',
@@ -23,7 +23,12 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' — берём файлы с сервера, а не из HTTP-кэша браузера, чтобы версия была целиком новой.
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -37,7 +42,10 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   // К API всегда сеть, его не кэшируем.
   if (url.hostname.endsWith('anthropic.com') || url.hostname.endsWith('googleapis.com')) return;
+  if (e.request.method !== 'GET') return;
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request))
+    caches.open(CACHE)
+      .then((c) => c.match(e.request, { ignoreSearch: e.request.mode === 'navigate' }))
+      .then((cached) => cached || fetch(e.request))
   );
 });
