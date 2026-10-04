@@ -108,6 +108,16 @@ function mergeRoleplay(a, b) {
   return [...map.values()].sort((x, y) => (x.date || 0) - (y.date || 0)).slice(-100);
 }
 
+// Страницы книги: объединяем по id; при конфликте берём ту, где больше вопросов-ответов.
+export function mergeReaderPages(a, b) {
+  const map = new Map();
+  for (const p of [...(a || []), ...(b || [])]) {
+    const prev = map.get(p.id);
+    if (!prev || ((p.qa || []).length > (prev.qa || []).length)) map.set(p.id, p);
+  }
+  return [...map.values()].sort((x, y) => (x.date || 0) - (y.date || 0)).slice(-30);
+}
+
 export function mergeSettings(a, b) {
   const A = a || {}, B = b || {};
   const out = { ...B, ...A };
@@ -122,6 +132,7 @@ export function mergeSettings(a, b) {
     out.teacherProfile = ((ta && ta.updatedAt) || 0) >= ((tb && tb.updatedAt) || 0) ? (ta || tb) : (tb || ta);
   }
   if (A.roleplayHistory || B.roleplayHistory) out.roleplayHistory = mergeRoleplay(A.roleplayHistory, B.roleplayHistory);
+  if (A.readerPages || B.readerPages) out.readerPages = mergeReaderPages(A.readerPages, B.readerPages);
   for (const key of new Set([...Object.keys(A), ...Object.keys(B)])) {
     if (key.startsWith('activity-')) out[key] = mergeActivity(A[key], B[key]);
     if (key.startsWith('daily-')) {

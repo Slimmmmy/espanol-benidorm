@@ -6,7 +6,7 @@ const features = [];
 const ES_NAMES = {
   today: 'Hoy', teacher: 'El profesor', chat: 'Charla', study: 'Repaso', daily: 'Palabras del día',
   roleplay: 'Escenas', dictionary: 'Diccionario', listening: 'Escuchar', speech: 'Pronunciación',
-  grammar: 'Gramática', assignments: 'Deberes', progress: 'Progreso', settings: 'Ajustes',
+  grammar: 'Gramática', assignments: 'Deberes', progress: 'Progreso', settings: 'Ajustes', reader: 'Lectura',
 };
 const iconFor = (f, cls) => (hasIcon(f.id) ? icon(f.id, cls) : `<span class="${cls}">${f.icon}</span>`);
 const PRIMARY_COUNT = 5;

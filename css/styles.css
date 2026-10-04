@@ -507,3 +507,48 @@ button.mini {
 
 .howto { margin: 6px 0 0; padding-left: 20px; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
 .howto li { margin: 4px 0; }
+
+/* ── Книга ──────────────────────────────────────────── */
+.rd-intro p { margin: 0 0 6px; color: var(--ink-2); }
+.rd-shoot, .rd-foot { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; align-items: center; }
+.rd-btn {
+  display: inline-flex; align-items: center; justify-content: center; margin: 0;
+  padding: 13px 18px; border-radius: var(--r-sm); cursor: pointer; font-size: 15px; font-weight: 700;
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+}
+.rd-btn-main { background: var(--accent); color: var(--accent-ink); border-color: transparent; flex: 1 1 220px; }
+.rd-btn:focus-within, .rd-btn:active { filter: brightness(1.05); }
+.rd-foot button { margin: 0; }
+.rd-tip { font-size: 13px; margin-top: 10px; }
+.rd-working { display: flex; gap: 14px; align-items: center; }
+.rd-thumb { width: 64px; height: 84px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex-shrink: 0; }
+.rd-list { display: grid; gap: 8px; }
+.rd-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; margin: 0; text-align: left;
+  padding: 12px 14px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r-md); font-weight: 400;
+}
+.rd-item-title { font-weight: 700; }
+.rd-item .muted { font-size: 13px; }
+.rd-back { margin: 0 0 6px; padding: 8px 12px; font-size: 14px; }
+.rd-meta { margin: -10px 0 8px; font-size: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rd-level { padding: 2px 10px; font-size: 12px; color: var(--sea); }
+.rd-summary h2 { margin-top: 0; }
+.rd-summary p { margin: 0; line-height: 1.55; }
+.rd-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rd-head h2 { margin-bottom: 6px; }
+.rd-hint { font-size: 13px; margin: 0 0 6px; }
+.rd-par { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.rd-par:last-child { border-bottom: none; }
+.rd-es { font-family: var(--font-es); font-size: 19px; line-height: 1.6; margin: 0; }
+.rd-tools { margin-top: 6px; }
+.rd-tools .mini:first-child { margin-left: 0; }
+.rd-ru { margin: 8px 0 0; font-size: 15px; line-height: 1.5; }
+.rd-words { display: grid; gap: 2px; }
+.rd-word { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.rd-word-main { min-width: 0; }
+.rd-word-main b { font-family: var(--font-es); font-size: 18px; font-weight: 600; }
+.rd-word-act { display: flex; align-items: flex-start; gap: 4px; flex-shrink: 0; }
+.rd-gr { font-size: 17px; font-style: italic; color: var(--sea); }
+.rd-ask { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.rd-ask input { margin: 0; flex: 1; min-width: 0; }
+.rd-ask button { margin: 0; flex-shrink: 0; }

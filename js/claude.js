@@ -1,6 +1,6 @@
 import { getSetting } from './db.js';
 import { extractJson, recentMessages } from './util.js';
-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT, ROLEPLAY_SYSTEM, ROLEPLAY_DEBRIEF_SYSTEM } from './prompts.js';
+import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT, ROLEPLAY_SYSTEM, ROLEPLAY_DEBRIEF_SYSTEM, READER_SYSTEM, READER_QA_SYSTEM } from './prompts.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-4-5';
 export const DEFAULT_CHAT_MODEL = 'claude-sonnet-5-5';
@@ -238,4 +238,36 @@ export async function debriefRoleplay(scene, transcript) {
     tier: 'chat',
   });
   return extractJson(text);
+}
+
+// Фото страницы книги → текст, перевод, смысл, слова, грамматика.
+export function buildReaderMessages(imageB64, knownEs = [], book = '') {
+  const known = knownEs.slice(0, 300).join(', ');
+  return [{
+    role: 'user',
+    content: [
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageB64 } },
+      { type: 'text', text: `${book ? `Книга: ${book}\n` : ''}Слова, которые ученик уже знает (не включай их в "words"): ${known || '(пока пусто)'}` },
+    ],
+  }];
+}
+
+export async function readBookPage(imageB64, knownEs, book) {
+  const text = await callClaude({
+    system: READER_SYSTEM,
+    messages: buildReaderMessages(imageB64, knownEs, book),
+    maxTokens: 6000,
+    tier: 'chat',
+  });
+  return extractJson(text);
+}
+
+export async function askAboutPage(pageText, history) {
+  return callClaude({
+    system: `${READER_QA_SYSTEM}\n\nТекст страницы:\n${pageText}`,
+    messages: recentMessages(history, 20),
+    maxTokens: 700,
+    tier: 'chat',
+    cache: true,
+  });
 }

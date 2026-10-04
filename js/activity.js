@@ -23,7 +23,7 @@ export function mergeActivity(a, b) {
   return out;
 }
 
-const PRACTICE_KINDS = ['lesson', 'assignment', 'roleplay', 'listening', 'dictation', 'speech', 'grammar'];
+const PRACTICE_KINDS = ['lesson', 'assignment', 'roleplay', 'listening', 'dictation', 'speech', 'grammar', 'reading'];
 export const REVIEW_GOAL = 20;
 
 // Цель дня из трёх шагов: повторение, 5 слов, живая практика.
@@ -33,7 +33,7 @@ export function dailyGoal({ queueLeft = 0, activity = {}, dailyAdded = 0, dailyT
   const steps = [
     { id: 'review', title: 'Повторить карточки', hint: queueLeft > 0 ? `осталось ${queueLeft}` : `повторено ${reviewed}`, done: queueLeft === 0 || reviewed >= REVIEW_GOAL, hash: '#study' },
     { id: 'words', title: '5 новых слов', hint: `${dailyAdded}/${dailyTotal}`, done: dailyTotal > 0 && dailyAdded >= dailyTotal, hash: '#daily' },
-    { id: 'practice', title: 'Живая практика', hint: practiced ? 'сделано' : 'сценка, урок, аудио или 3 сообщения в чате', done: practiced, hash: '#roleplay' },
+    { id: 'practice', title: 'Живая практика', hint: practiced ? 'сделано' : 'сценка, книга, урок, аудио или 3 сообщения в чате', done: practiced, hash: '#roleplay' },
   ];
   const done = steps.filter((s) => s.done).length;
   return { steps, done, total: steps.length, complete: done === steps.length };
