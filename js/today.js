@@ -126,6 +126,7 @@ async function render(container) {
     <div class="td-list">
       ${card('study', 'Повторение', s.due > 0 ? `Карточек на сегодня: ${s.due}` : 'На сегодня всё повторено', s.due > 0 ? 'Повторять' : 'Открыть', '#study', s.due === 0)}
       ${card('daily', '5 слов дня', dailyDone ? `Готово: ${s.dailyAdded} из ${s.dailyTotal}` : `Добавлено ${s.dailyAdded} из ${s.dailyTotal}`, dailyDone ? 'Открыть' : 'Учить', '#daily', dailyDone)}
+      ${card('reader', 'Книга', 'Сфотографируйте страницу — переведу и выберу слова', 'Читать', '#reader', (activity.reading || 0) > 0)}
       ${card('roleplay', 'Сценка', 'Бар, Mercadona, хозяин квартиры…', 'Играть', '#roleplay', (activity.roleplay || 0) > 0)}
       ${courseCard}
       ${card('assignments', 'Задания', s.openAssignments > 0 ? `Активных: ${s.openAssignments}` : 'Нет активных заданий', s.openAssignments > 0 ? 'Выполнить' : 'Получить', '#assignments', false)}
