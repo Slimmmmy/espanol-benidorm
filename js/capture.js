@@ -71,7 +71,7 @@ let processing = false;
 
 async function addCandidate(item, idx) {
   const c = item.candidates[idx];
-  const r = await saveWordWithId({ ...c, local: [c.local, item.context ? `Услышал: ${item.context}` : ''].filter(Boolean).join(' · ') });
+  const r = await saveWordWithId({ ...c, source: 'street', local: [c.local, item.context ? `Услышал: ${item.context}` : ''].filter(Boolean).join(' · ') });
   return updateItem(item.id, { status: r.status === 'added' ? 'added' : 'exists', chosen: idx, wordId: r.status === 'added' ? r.id : null });
 }
 
@@ -136,7 +136,7 @@ function itemHtml(it) {
         <div><b class="es">${e(c ? c.es : '')}</b> — ${e(c ? c.ru : '')} <span class="daily-added">${it.status === 'added' ? '✓ в словаре' : '✓ уже было в словаре'}</span></div>
         ${c && c.example ? `<div class="word-ex es">${e(c.example)}</div>` : ''}
         <div class="cap-acts">
-          <button class="mini" data-say="${e(it.id)}">🔊</button>
+          <button class="mini" data-say="${e(it.id)}" aria-label="Озвучить">${icon('sound', 'ic ic-sm')}</button>
           ${it.candidates.length > 1 ? `<button class="mini" data-other="${e(it.id)}">Не то?</button>` : ''}
           ${it.status === 'added' ? `<button class="mini" data-undo="${e(it.id)}">Отменить</button>` : ''}
         </div></div>`;
@@ -237,7 +237,7 @@ export function initCapture() {
     <div id="cap-toast" role="status"></div>
     <div id="cap-sheet">
       <div class="cap-panel">
-        <div class="cap-head"><b>Услышали слово?</b><button class="wp-x" id="cap-close">✕</button></div>
+        <div class="cap-head"><b>Услышали слово?</b><button class="wp-x" id="cap-close" aria-label="Закрыть">${icon('close', 'ic ic-sm')}</button></div>
         <p class="muted cap-help">Скажите или напишите, как услышали: с ошибками, слитно, даже русскими буквами («вэнга»). Разберусь сам.</p>
         ${canRecognize() ? `<button id="cap-mic" class="cap-mic">${icon('speech', 'ic')}<span>Сказать слово</span></button>` : ''}
         <div class="cap-row">

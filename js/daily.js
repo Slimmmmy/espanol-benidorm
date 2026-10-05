@@ -8,6 +8,7 @@ import { escapeHtml } from './util.js';
 import { enableWordPick } from './wordpick.js';
 import { logMistakes } from './mistakes.js';
 import { recordActivity } from './activity.js';
+import { icon } from './icons.js';
 
 function todayKey() { return `daily-${dayKey(Date.now())}`; }
 
@@ -36,7 +37,7 @@ function cardHtml(w, i) {
       ${w.example ? `<div class="word-ex">${e(w.example)}${w.exampleRu ? `<br><span class="muted">${e(w.exampleRu)}</span>` : ''}</div>` : ''}
       ${w.local ? `<div class="word-local">📍 ${e(w.local)}</div>` : ''}
       <div class="word-actions">
-        <button data-say="${i}">🔊</button>
+        <button data-say="${i}" aria-label="Озвучить">${icon('sound', 'ic ic-sm')}</button>
         ${w.added ? '<span class="daily-added">✓ в словаре</span>' : `<button data-add="${i}">Добавить в словарь</button>`}
         <button data-apply="${i}">Применить</button>
       </div>
@@ -83,10 +84,11 @@ async function render(container) {
         b.disabled = true;
         try {
           const now = Date.now();
-          await putWord({ es: w.es, ru: w.ru, example: w.example, exampleRu: w.exampleRu, pos: '', gender: '', local: w.local, createdAt: now, ...newCard(now) });
+          await putWord({ es: w.es, ru: w.ru, example: w.example, exampleRu: w.exampleRu, pos: '', gender: '', local: w.local, source: 'daily', createdAt: now, ...newCard(now) });
           await recordStudyDay();
           w.added = true;
           await setSetting(todayKey(), set);
+          await recordActivity('newWord');
           if (!container.querySelector('#dly-list')) return;
           paint();
         } catch (err) {

@@ -5,10 +5,11 @@ import { getSetting, setSetting, getAllWords } from './db.js';
 import { readBookPage, askAboutPage } from './claude.js';
 import { enableWordPick, saveWord, findExistingWord } from './wordpick.js';
 import { speak, stopSpeaking } from './tts.js';
-import { escapeHtml, renderMarkdown } from './util.js';
+import { escapeHtml, renderMarkdown, stagedStatus } from './util.js';
 import { recordActivity } from './activity.js';
 import { recordStudyDay } from './stats.js';
 import { autoSync } from './sync.js';
+import { icon } from './icons.js';
 
 const MAX_SIDE = 1600;
 const MAX_PAGES = 30;
@@ -142,9 +143,12 @@ async function processPhoto(container, file, book) {
     setBox('<p class="status">Готовлю фото…</p>');
     const { b64, preview } = await fileToJpegB64(file);
     setBox(`<div class="study-card rd-working"><img class="rd-thumb" src="${preview}" alt="Фото страницы">
-      <div><b>Читаю страницу…</b><div class="muted">Распознаю текст, перевожу и выбираю слова. Обычно 15–40 секунд.</div></div></div>`);
+      <div><b>Читаю страницу…</b><div class="muted" id="rd-stage" role="status">Распознаю текст</div><div class="muted">Обычно 15–40 секунд.</div></div></div>`);
+    const stop = stagedStatus(box.querySelector('#rd-stage'), ['Распознаю текст…', 'Перевожу абзацы…', 'Выбираю новые слова…', 'Отмечаю грамматику…'], 8000);
     const known = (await getAllWords()).map((w) => w.es).filter(Boolean);
-    const r = normalizeReading(await readBookPage(b64, known, book));
+    let raw;
+    try { raw = await readBookPage(b64, known, book); } finally { stop(); }
+    const r = normalizeReading(raw);
     if (!r.paragraphs.length) {
       setBox(`<p class="status">${escapeHtml(r.summary || 'Не удалось найти на фото испанский текст. Попробуйте сфотографировать ровнее и ближе.')}</p>`);
       return;
@@ -182,13 +186,13 @@ async function renderPage(container) {
 
     <section>
       <div class="rd-head"><h2>Текст</h2>
-        <span><button id="rd-all-tr" class="mini">Весь перевод</button><button id="rd-read-all" class="mini">🔊 Читать</button><button id="rd-stop" class="mini">⏹</button></span>
+        <span><button id="rd-all-tr" class="mini">Весь перевод</button><button id="rd-read-all" class="mini">${icon('sound', 'ic ic-sm')} Читать</button><button id="rd-stop" class="mini" aria-label="Остановить">${icon('close', 'ic ic-sm')}</button></span>
       </div>
       <p class="muted rd-hint">Нажмите на любое слово — перевод и «＋ в словарь».</p>
       <div class="rd-text">${p.paragraphs.map((para, i) => `
         <div class="rd-par">
           <p class="rd-es">${e(para)}</p>
-          <div class="rd-tools" data-nopick><button class="mini" data-say="${i}">🔊</button><button class="mini" data-slow="${i}">🐢</button><button class="mini" data-tr="${i}">RU</button></div>
+          <div class="rd-tools" data-nopick><button class="mini" data-say="${i}" aria-label="Озвучить абзац">${icon('sound', 'ic ic-sm')}</button><button class="mini" data-slow="${i}" aria-label="Медленно">0.7×</button><button class="mini" data-tr="${i}" aria-label="Перевод абзаца">RU</button></div>
           <p class="rd-ru muted hidden" data-ru="${i}">${e(p.translation[i] || '')}</p>
         </div>`).join('')}</div>
     </section>
@@ -200,7 +204,7 @@ async function renderPage(container) {
         return `<div class="rd-word">
           <div class="rd-word-main"><b>${e(w.es)}</b> — ${e(w.ru)}
             ${w.example ? `<div class="word-ex">${e(w.example)}${w.exampleRu ? `<br><span class="muted">${e(w.exampleRu)}</span>` : ''}</div>` : ''}</div>
-          <div class="rd-word-act"><button class="mini" data-wsay="${i}">🔊</button>${have ? '<span class="daily-added">✓</span>' : `<button class="mini" data-wadd="${i}">＋</button>`}</div>
+          <div class="rd-word-act"><button class="mini" data-wsay="${i}" aria-label="Озвучить">${icon('sound', 'ic ic-sm')}</button>${have ? '<span class="daily-added">✓</span>' : `<button class="mini" data-wadd="${i}" aria-label="Добавить в словарь">＋</button>`}</div>
         </div>`;
       }).join('')}</div>
     </section>` : ''}
@@ -248,7 +252,7 @@ async function renderPage(container) {
     const w = p.words[i];
     btn.disabled = true;
     try {
-      await saveWord({ es: w.es, ru: w.ru, example: w.example, exampleRu: w.exampleRu, local: p.book ? `Из книги: ${p.book}` : '' });
+      await saveWord({ es: w.es, ru: w.ru, example: w.example, exampleRu: w.exampleRu, source: 'book', local: p.book ? `Из книги: ${p.book}` : '' });
       btn.outerHTML = '<span class="daily-added">✓</span>';
     } catch (err) { btn.disabled = false; }
   };

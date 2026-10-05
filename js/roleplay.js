@@ -11,6 +11,7 @@ import { logMistakes } from './mistakes.js';
 import { recordActivity } from './activity.js';
 import { recordStudyDay } from './stats.js';
 import { autoSync } from './sync.js';
+import { icon } from './icons.js';
 
 export const SCENES = [
   { id: 'mercadona', voice: 'f', icon: '🛒', title: 'Касса в Mercadona', role: 'кассирша Mercadona, приветливая, но торопится', setting: 'вечер, очередь; у ученика карта не проходит, а наличных мелочью мало', goal: 'Оплатить покупки, попросить пакет и уточнить, можно ли оплатить частями (карта + наличные)' },
@@ -38,7 +39,7 @@ function bubblesHtml() {
     if (m.role === 'user') return `<div class="chat-msg chat-me">${m.voice ? '🎤 ' : ''}${e(m.content)}</div>`;
     return `<div class="chat-msg chat-bot rp-bot"><div class="rp-es">${e(m.es)}</div>
       <div class="rp-tools" data-nopick>
-        <button class="mini" data-say="${i}">🔊</button>
+        <button class="mini" data-say="${i}" aria-label="Озвучить">${icon('sound', 'ic ic-sm')}</button>
         <button class="mini" data-tr="${i}">RU</button>
         ${m.hint && i === history.length - 1 && !finished ? `<button class="mini" data-hint="${i}">💡 Подсказка</button>` : ''}
       </div>
@@ -138,7 +139,7 @@ function renderDebrief(container, r, corrections) {
       <div class="gr-ok">→ ${e(c.right)}</div><div class="word-ex">${e(c.why || '')}</div></div>`).join('')}` : '<p class="gr-ok">Ошибок не нашлось — отлично!</p>'}
     ${words.length ? `<h2>Пригодится в этой ситуации</h2>${words.map((w, i) => `
       <div class="rp-word"><span><b>${e(w.es)}</b> — ${e(w.ru)}</span>
-      <span><button class="mini" data-wsay="${i}">🔊</button><button class="mini" data-wadd="${i}">＋</button></span></div>`).join('')}` : ''}
+      <span><button class="mini" data-wsay="${i}" aria-label="Озвучить">${icon('sound', 'ic ic-sm')}</button><button class="mini" data-wadd="${i}" aria-label="Добавить в словарь">＋</button></span></div>`).join('')}` : ''}
     ${r.tip ? `<div class="word-local">💡 ${e(r.tip)}</div>` : ''}
     <button id="rp-again">Сыграть ещё раз</button>
     <button id="rp-list" class="ghost">Другие сценки</button>
@@ -148,7 +149,7 @@ function renderDebrief(container, r, corrections) {
     b.onclick = async () => {
       b.disabled = true;
       try {
-        const res = await saveWord(words[Number(b.dataset.wadd)]);
+        const res = await saveWord({ ...words[Number(b.dataset.wadd)], source: 'scene' });
         b.textContent = res === 'added' ? '✓' : '✓ уже есть';
       } catch (err) { b.disabled = false; }
     };
@@ -167,7 +168,7 @@ function mountScene(container) {
     <div id="rp-log" class="chat-log"></div>
     <p id="rp-status" class="status"></p>
     <div id="rp-bar" class="chat-bar">
-      ${canRecognize() ? '<button id="rp-mic" title="Сказать по-испански">🎤</button>' : ''}
+      ${canRecognize() ? `<button id="rp-mic" aria-label="Сказать по-испански">${icon('mic')}</button>` : ''}
       <input id="rp-input" type="text" placeholder="Tu respuesta…" autocapitalize="sentences">
       <button id="rp-send">➤</button>
     </div>

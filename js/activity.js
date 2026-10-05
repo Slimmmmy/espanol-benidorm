@@ -9,6 +9,8 @@ export async function recordActivity(kind, n = 1, now = Date.now()) {
   const a = (await getSetting(key)) || {};
   a[kind] = (a[kind] || 0) + n;
   await setSetting(key, a);
+  // Сообщаем открытым экранам (полоска «Занятия», цель дня), что прогресс изменился.
+  if (typeof window !== 'undefined' && window.dispatchEvent) window.dispatchEvent(new CustomEvent('es-activity', { detail: { kind } }));
   return a;
 }
 
@@ -33,7 +35,7 @@ export function dailyGoal({ queueLeft = 0, activity = {}, dailyAdded = 0, dailyT
   const steps = [
     { id: 'review', title: 'Повторить карточки', hint: queueLeft > 0 ? `осталось ${queueLeft}` : `повторено ${reviewed}`, done: queueLeft === 0 || reviewed >= REVIEW_GOAL, hash: '#study' },
     { id: 'words', title: '5 новых слов', hint: `${dailyAdded}/${dailyTotal}`, done: dailyTotal > 0 && dailyAdded >= dailyTotal, hash: '#daily' },
-    { id: 'practice', title: 'Живая практика', hint: practiced ? 'сделано' : 'сценка, книга, урок, аудио или 3 сообщения в чате', done: practiced, hash: '#roleplay' },
+    { id: 'practice', title: 'Живая практика', hint: practiced ? 'сделано' : 'сценка, книга, урок, аудио или 3 сообщения в чате', done: practiced, hash: '#practice' },
   ];
   const done = steps.filter((s) => s.done).length;
   return { steps, done, total: steps.length, complete: done === steps.length };

@@ -105,11 +105,13 @@ export async function deleteWord(id) {
   const db = await openDB();
   const w = await asPromise(tx(db, 'words', 'readonly').get(id));
   await asPromise(tx(db, 'words', 'readwrite').delete(id));
-  if (w && w.es) {
-    const list = (await getSetting('deletedWords')) || [];
-    list.push({ key: String(w.es).trim().toLowerCase(), uid: w.uid || '', at: Date.now() });
-    await setSetting('deletedWords', list.slice(-500));
-  }
+  if (w && w.es) await addTombstone(w.es, w.uid);
+}
+
+export async function addTombstone(es, uid = '', at = Date.now()) {
+  const list = (await getSetting('deletedWords')) || [];
+  list.push({ key: String(es).trim().toLowerCase(), uid: uid || '', at });
+  await setSetting('deletedWords', list.slice(-500));
 }
 
 export async function addMistake(m) {
