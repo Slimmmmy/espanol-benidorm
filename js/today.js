@@ -1,6 +1,7 @@
 import { registerFeature } from './app.js';
 import { getStats, dayKey } from './stats.js';
-import { getCourse, getAssignments } from './profile.js';
+import { getAssignments } from './profile.js';
+import { nextLessonTitle } from './teacher.js';
 import { getSetting, getAllWords } from './db.js';
 import { escapeHtml } from './util.js';
 import { buildQueue } from './queue.js';
@@ -10,19 +11,17 @@ import { icon } from './icons.js';
 import { loadSession, startSession, planSession, totalMinutes } from './session.js';
 import { renderOnboarding, needsOnboarding } from './onboarding.js';
 
-export function summarizeToday({ stats, course, assignments, daily } = {}) {
+export function summarizeToday({ stats, nextLesson = '', assignments, daily } = {}) {
   const dw = (daily && daily.words) || [];
   const dailyTotal = dw.length || 5;
   const dailyAdded = dw.filter((w) => w.added).length;
-  const next = (course && course.units) ? (course.units.find((u) => u.status !== 'done') || null) : null;
   const open = (Array.isArray(assignments) ? assignments : []).filter((a) => a.status !== 'done').length;
   return {
     streak: (stats && stats.streak) || 0,
     due: (stats && stats.due) || 0,
     dailyAdded,
     dailyTotal,
-    nextUnitTitle: next ? next.title : '',
-    hasCourse: !!course,
+    nextUnitTitle: nextLesson || '',
     openAssignments: open,
   };
 }
@@ -113,9 +112,9 @@ function heroHtml(stats) {
 async function render(container) {
   if (await needsOnboarding()) { renderOnboarding(container, () => render(container)); return; }
   container.innerHTML = '<p class="status" id="td-loading">Загрузка…</p>';
-  const [stats, course, assignments, daily, words, limits, activity] = await Promise.all([
+  const [stats, nextLesson, assignments, daily, words, limits, activity] = await Promise.all([
     getStats(),
-    getCourse(),
+    nextLessonTitle(),
     getAssignments(),
     getSetting(`daily-${dayKey(Date.now())}`),
     getAllWords(),
@@ -124,17 +123,16 @@ async function render(container) {
   ]);
   if (!container.querySelector('#td-loading')) return;
   const queueLeft = buildQueue(words, Date.now(), limits).queue.length;
-  const s = summarizeToday({ stats: { ...stats, due: queueLeft }, course, assignments, daily });
+  const s = summarizeToday({ stats: { ...stats, due: queueLeft }, nextLesson, assignments, daily });
   const goal = dailyGoal({ queueLeft, activity, dailyAdded: s.dailyAdded, dailyTotal: (daily && daily.words && daily.words.length) || 5 });
   refreshBadge(queueLeft);
 
   const dailyDone = s.dailyTotal > 0 && s.dailyAdded >= s.dailyTotal;
-  const nextUnit = course && course.units ? course.units.find((u) => u.status !== 'done') : null;
-  const plan = planSession({ queueLeft, dailyAdded: s.dailyAdded, dailyTotal: s.dailyTotal, nextUnit: nextUnit ? (nextUnit.topic || nextUnit.title) : '', dayNum: Math.floor(Date.now() / 86400000) });
+  const plan = planSession({ queueLeft, dailyAdded: s.dailyAdded, dailyTotal: s.dailyTotal, nextUnit: nextLesson, dayNum: Math.floor(Date.now() / 86400000) });
   const session = loadSession();
   const courseCard = s.nextUnitTitle
-    ? card('teacher', 'Урок курса', s.nextUnitTitle, 'Начать', '#teacher', false)
-    : card('teacher', 'Курс', s.hasCourse ? 'Курс пройден' : 'Программа ещё не создана', s.hasCourse ? 'Открыть' : 'Создать', '#teacher', s.hasCourse);
+    ? card('teacher', 'Учебник', s.nextUnitTitle, 'Учить', '#teacher', (activity.lesson || 0) > 0)
+    : card('teacher', 'Учебник', 'Пройден целиком — можно повторять', 'Открыть', '#teacher', true);
 
   container.innerHTML = `
     <h1 class="sr-only">Сегодня</h1>

@@ -1,5 +1,6 @@
 // Слияние снимков данных между устройствами. Чистые функции, без побочных эффектов.
 import { mergeActivity } from './activity.js';
+import { mergeTextbook } from './textbook.js';
 import { mergeInbox } from './capture.js';
 import { wordKey } from './wordkey.js';
 
@@ -169,6 +170,7 @@ export function mergeSettings(a, b) {
   if (A.chatHistory || B.chatHistory) out.chatHistory = mergeChatHistory(A.chatHistory, B.chatHistory);
   if (A.assignments || B.assignments) out.assignments = mergeAssignments(A.assignments, B.assignments);
   if (A.course || B.course) out.course = mergeCourse(A.course, B.course);
+  if (A.textbook || B.textbook) out.textbook = mergeTextbook(A.textbook, B.textbook);
   if (A.tutorMemory || B.tutorMemory) out.tutorMemory = mergeMemory(A.tutorMemory, B.tutorMemory);
   const ta = A.teacherProfile, tb = B.teacherProfile;
   if (ta || tb) {

@@ -1,6 +1,6 @@
 import { getSetting } from './db.js';
 import { extractJson, recentMessages } from './util.js';
-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT, ROLEPLAY_SYSTEM, ROLEPLAY_DEBRIEF_SYSTEM, READER_SYSTEM, READER_QA_SYSTEM, CAPTURE_SYSTEM, LESSON_VERIFY_SYSTEM } from './prompts.js';
+import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT, ROLEPLAY_SYSTEM, ROLEPLAY_DEBRIEF_SYSTEM, READER_SYSTEM, READER_QA_SYSTEM, CAPTURE_SYSTEM, LESSON_VERIFY_SYSTEM, TEXTBOOK_THEORY_SYSTEM, TEXTBOOK_EXERCISES_SYSTEM, TEXTBOOK_ASK_SYSTEM } from './prompts.js';
 import * as S from './schemas.js';
 import { topicsForLevel } from './curriculum.js';
 import { STORY_SYSTEM } from './prompts.js';
@@ -171,6 +171,7 @@ export function normalizeLesson(lesson) {
     const options = Array.isArray(ex.options) ? ex.options : [];
     const type = ex.type === 'choice' && options.length >= 2 ? 'choice' : 'open';
     const out = { type, prompt: ex.prompt || '' };
+    for (const k of ['stage', 'why', 'topic']) if (ex[k]) out[k] = ex[k]; // поля упражнений учебника
     if (type === 'choice') {
       out.options = options;
       out.answer = Number.isInteger(ex.answer) && ex.answer >= 0 && ex.answer < options.length ? ex.answer : 0;
@@ -225,6 +226,49 @@ export async function reviewLesson(lesson, answers) {
     tier: 'chat',
     messages: [{ role: 'user', content: `Тема: ${lesson.topic}\nУпражнения и ответы ученика: ${JSON.stringify(items)}` }],
     maxTokens: 900,
+  });
+  return extractJson(text);
+}
+
+// Учебник: теория урока по проверенному плану (кэшируется на устройстве — второй раз бесплатно).
+export async function generateTheory(brief, profile) {
+  const text = await callClaude({
+    system: TEXTBOOK_THEORY_SYSTEM,
+    schema: S.TEXTBOOK_THEORY,
+    tier: 'chat',
+    messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\n\n${brief}` }],
+    maxTokens: 4000,
+  });
+  return extractJson(text);
+}
+
+// Учебник: упражнения (каждый раз новые) + независимая проверка ключей вторым преподавателем.
+export async function generateTextbookExercises(step, brief, theory, profile) {
+  const recap = theory && Array.isArray(theory.summary) ? `\nШпаргалка теории:\n- ${theory.summary.join('\n- ')}` : '';
+  const text = await callClaude({
+    system: TEXTBOOK_EXERCISES_SYSTEM,
+    schema: S.TEXTBOOK_EXERCISES,
+    tier: 'chat',
+    messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\n\n${brief}${recap}` }],
+    maxTokens: 2500,
+  });
+  const lesson = normalizeLesson({ topic: step.topic, title: step.title, ...extractJson(text) });
+  try {
+    return applyLessonCheck(lesson, await verifyLesson(lesson));
+  } catch (e) {
+    return lesson;
+  }
+}
+
+// Учебник: вопрос ученика по уроку («почему?», «объясни проще»).
+export async function askAboutLesson(brief, question, history = []) {
+  const prev = history.slice(-3).map((h) => `Вопрос: ${h.q}\nОтвет: ${h.a}`).join('\n\n');
+  const text = await callClaude({
+    system: TEXTBOOK_ASK_SYSTEM,
+    schema: S.TEXTBOOK_ASK,
+    tier: 'chat',
+    messages: [{ role: 'user', content: `${brief}${prev ? `\n\nРанее в этом уроке:\n${prev}` : ''}\n\nВопрос ученика: ${question}` }],
+    maxTokens: 1200,
   });
   return extractJson(text);
 }
