@@ -14,5 +14,5 @@ test('sw.js кэширует все модули и шрифты', () => {
 });
 
 test('sw.js сохраняет кэш озвучки при обновлении', () => {
-  assert.match(sw, /'espanol-tts'/);
+  assert.match(sw, /'espanol-tts-v2'/);
 });

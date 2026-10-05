@@ -118,7 +118,7 @@ function renderShadow(box) {
     if (!canRecognize()) { status.textContent = 'Распознавание речи недоступно в этом браузере — повторите вслух сами.'; return; }
     status.textContent = 'Теперь вы — говорите!';
     try {
-      const heard = await recognizeOnce('es-ES');
+      const heard = await recognizeOnce('es-ES', { expected: phrase, title: 'Повторите фразу' });
       if (!box.isConnected) return;
       const d = diffWords(phrase, heard);
       const s = similarity(phrase, heard);
@@ -161,7 +161,7 @@ function renderCoach(box) {
     result.innerHTML = '';
     try {
       const target = PHRASES[coachIdx];
-      const heard = await recognizeOnce();
+      const heard = await recognizeOnce('es-ES', { expected: target, title: 'Произнесите фразу' });
       const s = similarity(target, heard);
       recordActivity('speech');
       if (!box.isConnected) return;

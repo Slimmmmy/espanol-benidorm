@@ -264,7 +264,7 @@ export function initCapture() {
       mic.classList.add('listening');
       st.textContent = 'Слушаю… скажите слово по-испански';
       try {
-        const heard = await recognizeOnce('es-ES');
+        const heard = await recognizeOnce('es-ES', { title: 'Скажите слово' });
         st.textContent = '';
         await submit(heard);
       } catch (err) {

@@ -4,8 +4,8 @@ import { scaleToFit, normalizeReading, wordsLabel } from '../js/reader.js';
 import { buildReaderMessages } from '../js/claude.js';
 import { mergeReaderPages } from '../js/merge.js';
 
-test('scaleToFit: уменьшает длинную сторону до 1600, маленькие не трогает', () => {
-  assert.deepEqual(scaleToFit(3024, 4032), { w: 1200, h: 1600 });
+test('scaleToFit: уменьшает длинную сторону до 1568 (предел Claude), маленькие не трогает', () => {
+  assert.deepEqual(scaleToFit(3024, 4032), { w: 1176, h: 1568 });
   assert.deepEqual(scaleToFit(800, 600), { w: 800, h: 600 });
   assert.deepEqual(scaleToFit(0, 100), { w: 0, h: 0 });
 });

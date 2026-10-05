@@ -3,6 +3,7 @@
 //  • голос устройства (Web Speech API) — запасной вариант, если нет ключа или сети.
 // Озвученные фразы кэшируются (Cache Storage): повтор бесплатный и работает офлайн.
 import { getSetting } from './db.js';
+import { setAudioSession } from './asr.js';
 
 // ── Голос устройства ─────────────────────────────────
 const ENHANCED = /enhanced|premium|siri|m[oó]nica|paulina|marisol|lucia|sergio|jorge|carlos/i;
@@ -75,23 +76,82 @@ export const GOOGLE_VOICES = [
   { id: 'Orus', gender: 'm', label: 'Orus — мужской, низкий' },
 ];
 const GOOGLE_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
-const TTS_CACHE = 'espanol-tts';
-const SLOW_RATE = 0.75;
+const VOICES_URL = 'https://texttospeech.googleapis.com/v1/voices';
+// v2: несжатый WAV вместо MP3 32 кбит/с — заметно чище звук. Старый кэш удаляет service worker.
+export const TTS_CACHE = 'espanol-tts-v2';
+const SLOW_RATE = 0.8;
 
-const cfg = { engine: 'device', key: '', female: 'Kore', male: 'Charon', main: 'f' };
+const cfg = { engine: 'device', key: '', female: 'Kore', male: 'Charon', main: 'f', rate: 1 };
 let lastError = '';
+let rateUnsupported = false; // голос не принимает speakingRate → ускоряем/замедляем на телефоне
+let lastUsed = { engine: '', voice: '' };
 
+// Короткое имя голоса Chirp 3 HD («Kore») или полное («es-ES-Studio-C»).
 export function googleVoiceName(id) {
-  return `es-ES-Chirp3-HD-${id}`;
+  return String(id || '').includes('-') ? id : `es-ES-Chirp3-HD-${id}`;
 }
 
 // Тело запроса к Google TTS. Чистая функция.
-export function buildGoogleRequest(text, voiceId) {
+export function buildGoogleRequest(text, voiceId, rate = 1) {
+  const name = googleVoiceName(voiceId);
+  const audioConfig = { audioEncoding: 'LINEAR16', sampleRateHertz: 24000 };
+  if (rate && rate !== 1) audioConfig.speakingRate = rate;
   return {
     input: { text },
-    voice: { languageCode: 'es-ES', name: googleVoiceName(voiceId) },
-    audioConfig: { audioEncoding: 'MP3' },
+    voice: { languageCode: name.split('-').slice(0, 2).join('-'), name },
+    audioConfig,
   };
+}
+
+// Характер голосов Chirp 3 HD (по описанию Google) — чтобы выбирать не вслепую.
+export const CHIRP_TRAITS = {
+  Achernar: 'мягкий', Achird: 'дружелюбный', Algenib: 'с хрипотцой', Algieba: 'плавный', Alnilam: 'уверенный',
+  Aoede: 'лёгкий, воздушный', Autonoe: 'яркий', Callirrhoe: 'непринуждённый', Charon: 'спокойный, рассказчик',
+  Despina: 'плавный', Enceladus: 'с придыханием', Erinome: 'чёткий', Fenrir: 'энергичный', Gacrux: 'зрелый',
+  Iapetus: 'чёткий', Kore: 'уверенный, тёплый', Laomedeia: 'бодрый', Leda: 'молодой', Orus: 'твёрдый, низкий',
+  Puck: 'бодрый', Pulcherrima: 'напористый', Rasalgethi: 'информативный', Sadachbia: 'живой', Sadaltager: 'знающий',
+  Schedar: 'ровный', Sulafat: 'тёплый', Umbriel: 'непринуждённый', Vindemiatrix: 'нежный', Zephyr: 'яркий',
+  Zubenelgenubi: 'разговорный',
+};
+const FAMILIES = [
+  { re: /Chirp3-HD/, title: 'Chirp 3 HD', note: 'самые живые, как настоящий человек' },
+  { re: /Chirp-HD/, title: 'Chirp HD', note: 'живые' },
+  { re: /Studio/, title: 'Studio', note: 'дикторские, очень чёткие' },
+  { re: /Neural2/, title: 'Neural2', note: 'чёткие, чуть «радийные»' },
+  { re: /Wavenet/, title: 'WaveNet', note: 'классические' },
+];
+
+// Список голосов Google → для выбора: только испанский из Испании и качественные семейства. Чистая функция.
+export function classifyVoices(list) {
+  const out = [];
+  for (const v of list || []) {
+    const name = v && v.name;
+    if (!name || !(v.languageCodes || []).includes('es-ES')) continue;
+    const fi = FAMILIES.findIndex((f) => f.re.test(name));
+    if (fi < 0) continue;
+    const short = name.split('-').pop();
+    const gender = v.ssmlGender === 'MALE' ? 'm' : 'f';
+    const id = /Chirp3-HD/.test(name) ? short : name;
+    const label = fi === 0 ? short : `${FAMILIES[fi].title} ${short}`;
+    out.push({ id, name, short, label, gender, family: FAMILIES[fi].title, familyNote: FAMILIES[fi].note, trait: CHIRP_TRAITS[short] || '', order: fi });
+  }
+  return out.sort((a, b) => a.order - b.order || a.short.localeCompare(b.short));
+}
+
+export async function listGoogleVoices(key = cfg.key) {
+  if (!key) throw new Error('Сначала вставьте ключ Google.');
+  let res;
+  try {
+    res = await fetch(`${VOICES_URL}?languageCode=es-ES&key=${encodeURIComponent(key)}`);
+  } catch (e) { throw new Error('Нет сети.'); }
+  let body = null;
+  try { body = await res.json(); } catch (e) { /* пусто */ }
+  if (!res.ok) throw new Error(googleError(res.status, body));
+  return classifyVoices((body && body.voices) || []);
+}
+
+export function ttsStatus() {
+  return { ...lastUsed, error: lastError, engine: cfg.engine, hasKey: !!cfg.key, female: cfg.female, male: cfg.male, main: cfg.main, rate: cfg.rate };
 }
 
 function voiceFor(gender) {
@@ -117,7 +177,7 @@ async function cachePut(url, blob) {
   try {
     if (typeof caches === 'undefined') return;
     const cache = await caches.open(TTS_CACHE);
-    await cache.put(url, new Response(blob, { headers: { 'content-type': 'audio/mpeg' } }));
+    await cache.put(url, new Response(blob, { headers: { 'content-type': blob.type || 'audio/wav' } }));
     if (++putsSinceTrim >= 25) {
       putsSinceTrim = 0;
       const keys = await cache.keys(); // в порядке добавления
@@ -130,7 +190,7 @@ function b64ToBlob(b64) {
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type: 'audio/mpeg' });
+  return new Blob([bytes], { type: 'audio/wav' });
 }
 
 function googleError(status, body) {
@@ -146,27 +206,38 @@ function googleError(status, body) {
   return `Ошибка Google TTS (${status}). ${body?.error?.message || ''}`.trim();
 }
 
-async function synthesize(text, voiceId) {
-  const cacheUrl = `https://tts.cache/${voiceId}/${encodeURIComponent(text)}`;
+// Синтез с кэшем. rate — скорость речи на стороне Google (естественнее, чем ускорять запись).
+// Возвращает { blob, playRate } — playRate ≠ 1, если голос не принял speakingRate.
+async function synthesize(text, voiceId, rate = 1) {
+  const r = rateUnsupported ? 1 : rate;
+  const cacheUrl = `https://tts.cache/${googleVoiceName(voiceId)}/${r}/${encodeURIComponent(text)}`;
   const cached = await cacheGet(cacheUrl);
-  if (cached) return cached;
-  let res;
-  try {
-    res = await fetch(`${GOOGLE_URL}?key=${encodeURIComponent(cfg.key)}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(buildGoogleRequest(text, voiceId)),
-    });
-  } catch (e) {
-    throw new Error('Нет сети — озвучиваю голосом телефона.');
+  if (cached) return { blob: cached, playRate: r === rate ? 1 : rate };
+  const call = async (rr) => {
+    let res;
+    try {
+      res = await fetch(`${GOOGLE_URL}?key=${encodeURIComponent(cfg.key)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(buildGoogleRequest(text, voiceId, rr)),
+      });
+    } catch (e) {
+      throw new Error('Нет сети — озвучиваю голосом телефона.');
+    }
+    let body = null;
+    try { body = await res.json(); } catch (e) { /* пусто */ }
+    return { res, body };
+  };
+  let { res, body } = await call(r);
+  if (res.status === 400 && r !== 1) {
+    rateUnsupported = true;
+    return synthesize(text, voiceId, rate);
   }
-  let body = null;
-  try { body = await res.json(); } catch (e) { /* пусто */ }
   if (!res.ok) throw new Error(googleError(res.status, body));
   if (!body || !body.audioContent) throw new Error('Google вернул пустой ответ.');
   const blob = b64ToBlob(body.audioContent);
   cachePut(cacheUrl, blob);
-  return blob;
+  return { blob, playRate: r === rate ? 1 : rate };
 }
 
 // ── Воспроизведение ──────────────────────────────────
@@ -212,7 +283,7 @@ function installUnlock() {
   document.addEventListener('keydown', unlock, { capture: true });
 }
 
-function playBlob(blob, slow, token) {
+function playBlob(blob, playRate, token) {
   return new Promise((resolve) => {
     const a = audioEl();
     if (!a || token !== playToken) { resolve(); return; }
@@ -221,8 +292,10 @@ function playBlob(blob, slow, token) {
     a.onended = done;
     a.onerror = done;
     a.src = url;
-    a.playbackRate = slow ? SLOW_RATE : 1;
+    a.playbackRate = playRate || 1;
     a.preservesPitch = true;
+    a.webkitPreservesPitch = true;
+    setAudioSession('playback'); // после микрофона iPhone иначе играет тихо, «в трубку»
     a.play().catch(done);
   });
 }
@@ -248,7 +321,10 @@ export function ttsLastError() {
 function deviceSpeak(text, lang, opts) {
   if (!deviceSpeakAvailable()) return false;
   speechSynthesis.cancel();
-  speechSynthesis.speak(deviceUtterance(text, lang, opts));
+  const u = deviceUtterance(text, lang, opts);
+  lastUsed = { engine: 'device', voice: (u.voice && u.voice.name) || 'системный' };
+  setAudioSession('playback');
+  speechSynthesis.speak(u);
   return true;
 }
 
@@ -260,9 +336,11 @@ export async function speak(text, lang = 'es-ES', opts = {}) {
   if (!clean) return false;
   if (cloudOn() && lang.startsWith('es')) {
     try {
-      const blob = await synthesize(clean, voiceFor(opts.gender));
+      const voice = opts.voice || voiceFor(opts.gender);
+      const { blob, playRate } = await synthesize(clean, voice, opts.slow ? SLOW_RATE : (opts.rate || cfg.rate));
       lastError = '';
-      await playBlob(blob, opts.slow, token);
+      lastUsed = { engine: 'google', voice: googleVoiceName(voice) };
+      await playBlob(blob, playRate, token);
       return true;
     } catch (e) {
       lastError = e.message;
@@ -298,14 +376,15 @@ export async function speakSequence(lines, lang = 'es-ES', opts = {}) {
     try {
       // Первую реплику запрашиваем сразу, следующие — пока звучит предыдущая.
       const other = cfg.main === 'f' ? 'm' : 'f';
-      const jobs = lines.map((l) => () => synthesize(l.es, voiceFor(slot(l.speaker) === 0 ? cfg.main : other)));
+      const rate = opts.slow ? SLOW_RATE : cfg.rate;
+      const jobs = lines.map((l) => () => synthesize(l.es, voiceFor(slot(l.speaker) === 0 ? cfg.main : other), rate));
       const start = (i) => { const p = jobs[i](); p.catch(() => {}); return p; };
       let next = jobs.length ? start(0) : null;
       for (let i = 0; i < jobs.length; i++) {
-        const blob = await next;
+        const { blob, playRate } = await next;
         next = i + 1 < jobs.length ? start(i + 1) : null;
         if (token !== playToken) return;
-        await playBlob(blob, opts.slow, token);
+        await playBlob(blob, playRate, token);
         if (token !== playToken) return;
       }
       lastError = '';
@@ -344,5 +423,7 @@ export async function initVoice() {
   cfg.female = (await getSetting('googleVoiceF')) || 'Kore';
   cfg.male = (await getSetting('googleVoiceM')) || 'Charon';
   cfg.main = (await getSetting('googleVoiceMain')) || 'f';
+  cfg.rate = voiceRate;
+  rateUnsupported = false;
   installUnlock();
 }
