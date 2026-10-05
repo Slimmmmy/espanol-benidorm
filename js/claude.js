@@ -2,6 +2,8 @@ import { getSetting } from './db.js';
 import { extractJson, recentMessages } from './util.js';
 import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT, ROLEPLAY_SYSTEM, ROLEPLAY_DEBRIEF_SYSTEM, READER_SYSTEM, READER_QA_SYSTEM, CAPTURE_SYSTEM, LESSON_VERIFY_SYSTEM } from './prompts.js';
 import * as S from './schemas.js';
+import { topicsForLevel } from './curriculum.js';
+import { STORY_SYSTEM } from './prompts.js';
 
 export const DEFAULT_MODEL = 'claude-haiku-4-5';
 export const DEFAULT_CHAT_MODEL = 'claude-sonnet-5-5';
@@ -136,12 +138,12 @@ export async function gradeSpeech(target, heard) {
   return extractJson(text);
 }
 
-export async function generateDailyWords(knownEs = []) {
+export async function generateDailyWords(knownEs = [], candidates = []) {
   const known = knownEs.slice(0, 200).join(', ');
   const text = await callClaude({
     system: DAILY_WORDS_SYSTEM,
     schema: S.DAILY_WORDS,
-    messages: [{ role: 'user', content: `Слова, которые ученик уже знает (не повторяй их): ${known || '(пока пусто)'}` }],
+    messages: [{ role: 'user', content: `Слова, которые ученик уже знает (не повторяй их): ${known || '(пока пусто)'}${candidates.length ? `\nЧастотные кандидаты (самые частые слова испанского, которых ещё нет в словаре): ${candidates.join(', ')}` : ''}` }],
     maxTokens: 800,
   });
   return extractJson(text);
@@ -232,7 +234,7 @@ export async function generateCourse(profile, goal) {
     system: COURSE_GEN_SYSTEM,
     schema: S.COURSE_GEN,
     tier: 'chat',
-    messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\nЦель: ${goal}` }],
+    messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\nЦель: ${goal}\nГрамматические темы по уровням (Plan Curricular Института Сервантеса):\n${topicsForLevel(profile && profile.level).map((l) => `${l.level}: ${l.topics.join('; ')}`).join('\n')}` }],
     maxTokens: 1100,
   });
   return extractJson(text);
@@ -350,6 +352,18 @@ export async function resolveHeardWord(raw, context = '') {
     schema: S.CAPTURE,
     messages: [{ role: 'user', content: `Записал так: ${raw}${context ? `\nГде услышал: ${context}` : ''}` }],
     maxTokens: 700,
+  });
+  return extractJson(text);
+}
+
+// Короткая история из знакомых слов + 2–3 новых (понятное чтение).
+export async function generateStory({ level, known = [], fresh = [], topic = '' }) {
+  const text = await callClaude({
+    system: STORY_SYSTEM,
+    schema: S.STORY,
+    tier: 'chat',
+    messages: [{ role: 'user', content: `Уровень: ${level}\nЗнакомые слова: ${known.slice(0, 300).join(', ') || '(почти нет — пиши очень просто)'}\nНовые слова для истории: ${fresh.join(', ')}${topic ? `\nТема: ${topic}` : ''}` }],
+    maxTokens: 2000,
   });
   return extractJson(text);
 }

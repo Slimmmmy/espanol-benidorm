@@ -7,9 +7,10 @@ import { icon } from './icons.js';
 
 export const PRACTICE_ITEMS = [
   { id: 'roleplay', title: 'Сценки', es: 'Escenas', sub: 'Бар, Mercadona, хозяин квартиры — разговор в роли', kinds: ['roleplay'] },
+  { id: 'stories', title: 'Истории', es: 'Historias', sub: 'Рассказ из ваших слов + 2–3 новых, с озвучкой', kinds: ['story'] },
   { id: 'reader', title: 'Книга', es: 'Lectura', sub: 'Фото страницы → перевод, смысл и новые слова', kinds: ['reading'] },
   { id: 'listening', title: 'Аудио', es: 'Escuchar', sub: 'Диалоги на слух и диктант', kinds: ['listening', 'dictation'] },
-  { id: 'speech', title: 'Логопед', es: 'Pronunciación', sub: 'Скажите фразу — разберу произношение', kinds: ['speech'] },
+  { id: 'speech', title: 'Логопед', es: 'Pronunciación', sub: 'Пары звуков, повтор за голосом, разбор фразы', kinds: ['speech'] },
   { id: 'assignments', title: 'Задания', es: 'Deberes', sub: 'Короткое письменное задание с проверкой', kinds: ['assignment'] },
 ];
 

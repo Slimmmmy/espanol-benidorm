@@ -27,12 +27,19 @@ function dots(i) {
   return `<div class="ob-dots" aria-label="Шаг ${i + 1} из 3">${[0, 1, 2].map((k) => `<span class="${k <= i ? 'on' : ''}"></span>`).join('')}</div>`;
 }
 
+// Шаг мастера переживает переход на тест уровня и обратно.
+const stepStore = {
+  get() { try { return Number(localStorage.getItem('obStep')) || 0; } catch (e) { return 0; } },
+  set(v) { try { localStorage.setItem('obStep', String(v)); } catch (e) { /* необязательно */ } },
+};
+
 export function renderOnboarding(container, done) {
   const e = escapeHtml;
-  let step = 0;
-  const finish = async () => { await setSetting('onboarded', true); done(); };
+  let step = stepStore.get();
+  const finish = async () => { stepStore.set(0); await setSetting('onboarded', true); done(); };
 
   const paint = async () => {
+    stepStore.set(step);
     if (step === 0) {
       container.innerHTML = `<section class="onboarding">
         ${dots(0)}
@@ -69,7 +76,9 @@ export function renderOnboarding(container, done) {
         <h1>Ваш уровень испанского</h1>
         <p class="lead">Под него подстроятся уроки, сценки и новые слова. Поменять можно в Настройках.</p>
         <div class="ob-options">${LEVELS.map((l) => `<button class="ob-option${l.id === level ? ' active' : ''}" data-level="${e(l.id)}"><b>${e(l.title)}</b><span>${e(l.id.replace('-', '–'))} · ${e(l.sub)}</span></button>`).join('')}</div>
+        <button id="ob-test" class="ghost wide">Не знаю — пройти тест (5 минут)</button>
       </section>`;
+      container.querySelector('#ob-test').onclick = () => { stepStore.set(2); location.hash = '#placement'; };
       container.querySelectorAll('[data-level]').forEach((b) => {
         b.onclick = async () => { await setSetting('level', b.dataset.level); step = 2; paint(); };
       });

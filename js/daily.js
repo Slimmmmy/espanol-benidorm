@@ -8,6 +8,7 @@ import { escapeHtml } from './util.js';
 import { enableWordPick } from './wordpick.js';
 import { logMistakes } from './mistakes.js';
 import { recordActivity } from './activity.js';
+import { nextFrequent } from './freq.js';
 import { icon } from './icons.js';
 
 function todayKey() { return `daily-${dayKey(Date.now())}`; }
@@ -17,8 +18,9 @@ async function loadOrCreate(statusEl) {
   const existing = await getSetting(k);
   if (existing && Array.isArray(existing.words) && existing.words.length) return existing;
   statusEl.textContent = 'Подбираю 5 новых слов на сегодня…';
-  const known = (await getVocab()).map((w) => w.es).filter(Boolean);
-  const data = await generateDailyWords(known);
+  const vocab = await getVocab();
+  const known = vocab.map((w) => w.es).filter(Boolean);
+  const data = await generateDailyWords(known, nextFrequent(vocab, 12));
   const words = (data.words || []).slice(0, 5).map((w) => ({
     es: w.es || '', ru: w.ru || '', example: w.example || '',
     exampleRu: w.exampleRu || '', local: w.local || '', added: false,

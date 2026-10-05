@@ -18,6 +18,7 @@ export const REVIEW_TARGET = 20;
 const PRACTICE_ROTATION = [
   { hash: '#roleplay', title: 'Сценка', hint: 'разговор в роли', kinds: ['roleplay'], minutes: 6 },
   { hash: '#listening', title: 'Аудио', hint: 'диалог на слух', kinds: ['listening', 'dictation'], minutes: 5 },
+  { hash: '#stories', title: 'История', hint: 'рассказ из ваших слов', kinds: ['story'], minutes: 5 },
   { hash: '#reader', title: 'Книга', hint: 'одна страница', kinds: ['reading'], minutes: 6 },
 ];
 

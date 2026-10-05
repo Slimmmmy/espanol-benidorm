@@ -1,5 +1,7 @@
-import { getSetting, setSetting } from './db.js';
+import { getSetting, setSetting, getAllWords } from './db.js';
 import { getStats } from './stats.js';
+import { freqCoverage } from './freq.js';
+import { TENSES } from './verbs.js';
 
 export function pickNextTopic(weak, lastTopic) {
   if (!weak || weak.length === 0) return 'Общая практика грамматики';
@@ -8,17 +10,37 @@ export function pickNextTopic(weak, lastTopic) {
   return pick.topic;
 }
 
+// Времена, которые ученик тренирует, и насколько уверенно (по карточкам глаголов). Чистая функция.
+export function tenseSkills(words) {
+  const out = [];
+  for (const t of TENSES) {
+    const cards = (words || []).filter((w) => w.kind === 'verb' && w.tense === t.id);
+    if (!cards.length) continue;
+    const solid = cards.filter((w) => (w.reps || 0) >= 3 && (w.lapses || 0) < 3).length;
+    out.push(`${t.title}: ${solid} из ${cards.length} глаголов уверенно`);
+  }
+  return out;
+}
+
+// Модель ученика: компактный профиль, который уходит в запросы к ИИ (уроки, курс, чат, задания).
 export async function buildProfile() {
-  const stats = await getStats();
+  const [stats, words] = await Promise.all([getStats(), getAllWords()]);
   const level = (await getSetting('level')) || 'A2-B1';
   const tp = (await getSetting('teacherProfile')) || {};
   const history = (await getSetting('lessonHistory')) || [];
   const memory = (await getSetting('tutorMemory')) || [];
+  const goal = (await getSetting('goal')) || '';
+  const placement = await getSetting('placement');
+  const cov = freqCoverage(words);
   return {
     level,
+    placement: placement ? `${placement.cefr} по входному тесту` : '',
+    goal,
     words: stats.words,
     learned: stats.learned,
-    weak: stats.weak,
+    frequency: `в словаре ${cov.inDict} из 1000 самых частых слов, выучено ${cov.learned}`,
+    tenses: tenseSkills(words),
+    weak: stats.weak.slice(0, 8),
     note: tp.note || '',
     lastTopic: tp.lastTopic || '',
     lessonsCompleted: history.length,

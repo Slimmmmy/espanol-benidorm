@@ -5,6 +5,9 @@ import { lastNDays } from './activity.js';
 import { forecastDue } from './queue.js';
 import { escapeHtml } from './util.js';
 import { icon } from './icons.js';
+import { freqCoverage } from './freq.js';
+import { tenseSkills } from './profile.js';
+import { levelOfTopic } from './curriculum.js';
 
 const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
@@ -48,7 +51,7 @@ function tableHtml(rows, headA, headB) {
     ${rows.map(([a, b]) => `<tr><td>${e(a)}</td><td>${e(b)}</td></tr>`).join('')}</table></details>`;
 }
 
-const SOURCE_LABEL = { grammar: 'грамматика', lesson: 'урок', assignment: 'задание', chat: 'чат', roleplay: 'сценка', daily: '5 слов' };
+const SOURCE_LABEL = { grammar: 'грамматика', lesson: 'урок', assignment: 'задание', chat: 'чат', roleplay: 'сценка', daily: '5 слов', drill: 'тренажёр' };
 
 async function render(container) {
   container.innerHTML = '<h1>Прогресс</h1><p class="status" id="prog-loading">Загрузка…</p>';
@@ -82,17 +85,36 @@ async function render(container) {
     (sources[t] = sources[t] || new Set()).add(SOURCE_LABEL[m.source] || 'грамматика');
   }
   const weakHtml = s.weak.length
-    ? s.weak.slice(0, 12).map((w) => `<div class="word-local">📌 ${e(w.topic)} — ${w.count}<span class="muted"> · ${e([...(sources[w.topic] || [])].join(', '))}</span></div>`).join('')
+    ? s.weak.slice(0, 12).map((w) => `<div class="word-local">${levelOfTopic(w.topic) ? `<span class="tag">${levelOfTopic(w.topic)}</span> ` : ''}${e(w.topic)} — ${w.count}<span class="muted"> · ${e([...(sources[w.topic] || [])].join(', '))}</span></div>`).join('')
     : '<p class="status">Пока ошибок не замечено — так держать!</p>';
 
+  const cov = freqCoverage(snap.words);
+  const placement = snap.settings.placement;
+  const tenses = tenseSkills(snap.words);
+  const level = snap.settings.level || 'A2-B1';
+  const freqHtml = `<div class="study-card">
+      <div><b>${cov.inDict}</b> из 1000 самых частых слов испанского в словаре, <b>${cov.learned}</b> выучено.</div>
+      <div class="freq-bands">${cov.bands.map((b) => `<div class="freq-band"><span class="muted">${e(b.title)}</span>
+        <span class="freq-bar" role="img" aria-label="${e(b.title)}: в словаре ${b.inDict} из ${b.total}, выучено ${b.learned}"><span class="in" style="width:${(b.inDict / b.total) * 100}%"></span><span class="le" style="width:${(b.learned / b.total) * 100}%"></span></span>
+        <span>${b.inDict}/${b.total}</span></div>`).join('')}</div>
+      <p class="status">Светлая полоса — в словаре, яркая — выучено. Первые 1000 слов покрывают большую часть бытовой речи; «5 слов дня» и истории берут новые слова отсюда.</p>
+    </div>`;
   container.innerHTML = `
     <h1>Прогресс</h1>
+    <div class="word-card level-card">
+      <div><b>Уровень: ${e(level.replace('-', '–'))}</b>${placement ? ` · по тесту ${e(placement.cefr)} (${new Date(placement.date).toLocaleDateString('ru-RU')})` : ''}</div>
+      ${tenses.length ? `<div class="status">${tenses.map(e).join('<br>')}</div>` : ''}
+      <a class="drills-link" href="#placement">${icon('progress', 'ic ic-sm')}<span>${placement ? 'Пройти тест уровня ещё раз' : 'Пройти тест уровня — 5 минут'}</span>${icon('arrow', 'ic ic-sm')}</a>
+    </div>
     <div class="stats-grid">
       <div class="stat"><div class="stat-num">${s.streak}</div><div class="stat-lbl">дней подряд${s.freezes ? ` · <span class="stat-ice" title="Заморозки серии">${icon('snow', 'ic ic-sm').repeat(s.freezes)}</span>` : ''}</div></div>
       <div class="stat"><div class="stat-num">${s.words}</div><div class="stat-lbl">слов в словаре</div></div>
       <div class="stat"><div class="stat-num">${s.learned}</div><div class="stat-lbl">выучено</div></div>
       <div class="stat"><div class="stat-num">${accuracy === null ? '—' : accuracy + '%'}</div><div class="stat-lbl">вспоминаешь (14 дн.)</div></div>
     </div>
+
+    <h2>Частотный словарь</h2>
+    ${freqHtml}
 
     <h2>Повторения за 14 дней</h2>
     <div class="study-card chart-card">

@@ -706,7 +706,7 @@ button.wide { display: flex; align-items: center; justify-content: center; gap: 
   background: var(--surface); border: 1px solid var(--line);
 }
 .hub-tile:active { background: var(--surface-2); }
-.hub-tile:first-child { grid-column: 1 / -1; min-height: 120px; }
+.hub-tile:first-child:nth-last-child(odd) { grid-column: 1 / -1; min-height: 120px; }
 .hub-icon { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--sea-soft); color: var(--sea); margin-bottom: 8px; }
 .hub-tile.done .hub-icon { background: var(--ok-soft); color: var(--ok); }
 .hub-title { font-weight: 700; font-size: 1.0625rem; }
@@ -801,3 +801,24 @@ button.hub-tile { margin: 0; text-align: left; font-weight: 400; align-items: fl
 .drill-wrong { padding-left: 18px; display: grid; gap: 8px; font-family: var(--font-es); }
 .drill-wrong s { color: var(--muted); }
 .ff-list { padding-left: 18px; display: grid; gap: 8px; margin: 10px 0; }
+
+/* ── Этап 4: фонетика, истории ─────────────────────── */
+.seg-inline { margin: 0 0 14px; }
+.seg-inline .seg-btn { border: none; background: none; font-family: inherit; cursor: pointer; margin: 0; }
+.seg-inline .seg-btn.active { background: var(--accent-soft); }
+.tips { margin: 10px 0 0; padding-left: 18px; color: var(--ink-2); font-size: .9rem; display: grid; gap: 4px; }
+.pair-score { text-align: center; color: var(--muted); margin-bottom: 4px; }
+.w-ok { color: var(--ok); }
+.w-bad { color: var(--danger); text-decoration: underline wavy; text-underline-offset: 3px; }
+.ob-option.right { border-color: var(--ok); background: var(--ok-soft); opacity: 1; }
+.ob-option.wrong { border-color: var(--danger); background: var(--danger-soft); opacity: 1; }
+.story-text { line-height: 1.7; }
+.story-p { font-family: var(--font-es); font-size: 1.125rem; margin: 0 0 6px; }
+.story-ru { margin: 0 0 14px; font-size: .95rem; }
+.freq-bands { display: grid; gap: 10px; margin-top: 10px; }
+.freq-band { display: grid; grid-template-columns: 76px 1fr auto; gap: 10px; align-items: center; font-size: .875rem; }
+.freq-bar { position: relative; height: 10px; border-radius: 10px; background: var(--line); overflow: hidden; }
+.freq-bar span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 10px; }
+.freq-bar .in { background: var(--sea-soft); background: color-mix(in srgb, var(--sea) 45%, transparent); }
+.freq-bar .le { background: var(--sea); }
+.hf-btn.on { background: var(--ok); color: var(--bg); border-color: var(--ok); }
