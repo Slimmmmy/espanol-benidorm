@@ -1,6 +1,6 @@
 import { registerFeature } from './app.js';
 import { generateDailyWords, checkGrammar } from './claude.js';
-import { getSetting, setSetting, getAllWords, putWord } from './db.js';
+import { getSetting, setSetting, getVocab, putWord } from './db.js';
 import { newCard } from './srs.js';
 import { dayKey, recordStudyDay } from './stats.js';
 import { speak } from './tts.js';
@@ -17,7 +17,7 @@ async function loadOrCreate(statusEl) {
   const existing = await getSetting(k);
   if (existing && Array.isArray(existing.words) && existing.words.length) return existing;
   statusEl.textContent = 'Подбираю 5 новых слов на сегодня…';
-  const known = (await getAllWords()).map((w) => w.es).filter(Boolean);
+  const known = (await getVocab()).map((w) => w.es).filter(Boolean);
   const data = await generateDailyWords(known);
   const words = (data.words || []).slice(0, 5).map((w) => ({
     es: w.es || '', ru: w.ru || '', example: w.example || '',

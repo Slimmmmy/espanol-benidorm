@@ -1,6 +1,7 @@
 // Слияние снимков данных между устройствами. Чистые функции, без побочных эффектов.
 import { mergeActivity } from './activity.js';
 import { mergeInbox } from './capture.js';
+import { wordKey } from './wordkey.js';
 
 function normEs(s) { return String(s || '').trim().toLowerCase(); }
 
@@ -35,8 +36,8 @@ function deletedAt(tombstones) {
 export function mergeWords(a, b, tombstones) {
   const map = new Map();
   for (const w of [...(a || []), ...(b || [])]) {
-    const k = normEs(w.es);
-    if (!k) continue;
+    if (!normEs(w.es)) continue;
+    const k = wordKey(w);
     const { id, ...rest } = w;
     if (map.has(k)) {
       const prev = map.get(k);

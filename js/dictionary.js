@@ -1,13 +1,15 @@
 import { registerFeature } from './app.js';
 import { detectLang } from './lang.js';
 import { enrichWord } from './claude.js';
-import { putWord, getAllWords, deleteWord, addTombstone } from './db.js';
+import { putWord, getVocab, deleteWord, addTombstone } from './db.js';
+import { wordKey } from './wordkey.js';
 import { newCard } from './srs.js';
 import { isNewCard, intervalLabel } from './fsrs.js';
 import { recordActivity } from './activity.js';
 import { speak } from './tts.js';
 import { escapeHtml } from './util.js';
 import { icon } from './icons.js';
+import { nounGender, bareNoun } from './exercises.js';
 
 export const SOURCES = {
   street: 'Улица', book: 'Книга', scene: 'Сценка', daily: 'Слово дня', tap: 'Из текста', manual: 'Вручную',
@@ -92,7 +94,7 @@ function rowHtml(w, now) {
   }
   return `<div class="word-card word-row${isHard(w) ? ' hard' : ''}">
     <div class="word-row-main">
-      <div class="word-main"><b>${e(w.es)}</b> ${w.gender ? `<span class="muted">(${e(w.gender)})</span>` : ''} — ${e(w.ru)}</div>
+      <div class="word-main">${nounGender(w) ? `<span class="art art-${nounGender(w)}">${nounGender(w)}</span> <b>${e(bareNoun(w.es))}</b>` : `<b>${e(w.es)}</b>`} — ${e(w.ru)}</div>
       <div class="word-meta">${src ? `<span class="tag">${e(SOURCES[src])}</span>` : ''}<span>${e(statusLine(w, now))}</span></div>
     </div>
     <div class="word-row-actions">
@@ -105,7 +107,7 @@ function rowHtml(w, now) {
 async function renderList(container) {
   const listEl = container.querySelector('#dic-list');
   if (!listEl) return;
-  const all = await getAllWords();
+  const all = await getVocab();
   if (!container.querySelector('#dic-list')) return;
   const now = Date.now();
   container.querySelector('#dic-count').textContent = all.length ? `(${all.length})` : '';
@@ -153,7 +155,7 @@ async function renderList(container) {
       const val = (k) => String(fd.get(k) || '').trim();
       if (!w || !val('es') || !val('ru')) return;
       // Слово переименовали: старое написание помечаем удалённым, чтобы оно не вернулось с другого устройства.
-      if (val('es').toLowerCase() !== String(w.es).trim().toLowerCase()) await addTombstone(w.es, w.uid, Date.now() - 1);
+      if (val('es').toLowerCase() !== String(w.es).trim().toLowerCase()) await addTombstone(wordKey(w), w.uid, Date.now() - 1);
       await putWord({ ...w, es: val('es'), ru: val('ru'), gender: val('gender'), example: val('example'), exampleRu: val('exampleRu'), local: val('local') });
       state.editing = null;
       renderList(container);

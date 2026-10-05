@@ -1,7 +1,7 @@
 // «Книга»: фото страницы → распознанный текст с переводом по абзацам, смысл, новые слова, грамматика,
 // вопросы по тексту. Любое слово в тексте можно нажать (перевод + «в словарь»).
 import { registerFeature } from './app.js';
-import { getSetting, setSetting, getAllWords } from './db.js';
+import { getSetting, setSetting, getVocab } from './db.js';
 import { readBookPage, askAboutPage } from './claude.js';
 import { enableWordPick, saveWord, findExistingWord } from './wordpick.js';
 import { speak, stopSpeaking } from './tts.js';
@@ -145,7 +145,7 @@ async function processPhoto(container, file, book) {
     setBox(`<div class="study-card rd-working"><img class="rd-thumb" src="${preview}" alt="Фото страницы">
       <div><b>Читаю страницу…</b><div class="muted" id="rd-stage" role="status">Распознаю текст</div><div class="muted">Обычно 15–40 секунд.</div></div></div>`);
     const stop = stagedStatus(box.querySelector('#rd-stage'), ['Распознаю текст…', 'Перевожу абзацы…', 'Выбираю новые слова…', 'Отмечаю грамматику…'], 8000);
-    const known = (await getAllWords()).map((w) => w.es).filter(Boolean);
+    const known = (await getVocab()).map((w) => w.es).filter(Boolean);
     let raw;
     try { raw = await readBookPage(b64, known, book); } finally { stop(); }
     const r = normalizeReading(raw);
@@ -176,7 +176,7 @@ function pageText(page) {
 async function renderPage(container) {
   const e = escapeHtml;
   const p = current;
-  const words = await getAllWords();
+  const words = await getVocab();
   container.innerHTML = `
     <button id="rd-back" class="ghost rd-back">← Все страницы</button>
     <h1>${e(p.title)}</h1>

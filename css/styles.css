@@ -760,3 +760,44 @@ button.icon-btn {
 .goal-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .goal-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
 .goal-pill.done { background: var(--ok-soft); color: var(--ok); }
+
+/* ── Этап 3: грамматика ────────────────────────────── */
+.art { font-family: var(--font-body); font-style: normal; font-weight: 700; font-size: .78em; padding: 1px 7px; border-radius: 6px; vertical-align: .12em; }
+.art-el { background: var(--sea-soft); color: var(--sea); }
+.art-la { background: var(--accent-soft); color: var(--accent); }
+.drills-link {
+  display: flex; align-items: center; gap: 10px; margin: 18px 0 0; padding: 12px 14px; min-height: 48px;
+  border-radius: var(--r-md); border: 1px dashed var(--line); color: var(--ink-2); text-decoration: none; font-size: .875rem; font-weight: 600;
+}
+.drills-link span { flex: 1; }
+.drills-link .ic { color: var(--sea); }
+.verb-ask { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 4px; }
+.chip-person { font-family: var(--font-es); font-style: italic; font-size: 1rem; color: var(--ink); border-color: var(--sea); }
+.fix-wrong { font-family: var(--font-es); font-size: 1.3rem; text-align: center; margin: 16px 0 6px; color: var(--ink); text-wrap: balance; }
+.fix-was { text-align: center; color: var(--muted); font-family: var(--font-es); margin-top: 6px; }
+.fix-was s { text-decoration-color: var(--danger); }
+.fix-right b { font-size: 1.4rem; }
+.gender-row { display: flex; gap: 10px; margin-top: 16px; }
+.gender-row button { flex: 1; margin: 0; padding: 16px; font-size: 1.25rem; font-family: var(--font-es); font-style: italic; }
+.gender-row button.right { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); opacity: 1; }
+.gender-row button.wrong { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); opacity: 1; }
+.conj-table { width: 100%; border-collapse: collapse; margin: 12px 0 4px; font-family: var(--font-es); }
+.conj-table caption { text-align: left; font-family: var(--font-body); font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding-bottom: 4px; }
+.conj-table th { text-align: left; font-weight: 400; color: var(--muted); padding: 5px 8px 5px 0; width: 45%; font-style: italic; }
+.conj-table td { padding: 5px 0; font-weight: 600; }
+.conj-table tr + tr { border-top: 1px solid var(--line); }
+.conj-table tr.cur td, .conj-table tr.cur th { color: var(--accent); }
+.drill-list { display: grid; gap: 8px; }
+.drill-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
+.drill-row-text { flex: 1; min-width: 0; }
+.drill-hint { font-size: .8125rem; }
+.drill-row-actions { display: flex; flex-direction: column; gap: 6px; }
+.drill-row-actions button { margin: 0; padding: 8px 12px; font-size: .875rem; white-space: nowrap; }
+button.hub-tile { margin: 0; text-align: left; font-weight: 400; align-items: flex-start; }
+.drill-progress { height: 6px; border-radius: 6px; background: var(--line); overflow: hidden; margin-bottom: 12px; }
+.drill-progress span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.drill-sentence { font-family: var(--font-es); font-size: 1.4rem; line-height: 1.45; text-align: center; margin: 10px 0; text-wrap: balance; }
+.drill-sentence .gap { color: var(--accent); }
+.drill-wrong { padding-left: 18px; display: grid; gap: 8px; font-family: var(--font-es); }
+.drill-wrong s { color: var(--muted); }
+.ff-list { padding-left: 18px; display: grid; gap: 8px; margin: 10px 0; }

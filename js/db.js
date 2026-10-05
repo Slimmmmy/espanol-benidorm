@@ -1,4 +1,5 @@
 // Обёртка IndexedDB с версионированной схемой и миграциями.
+import { wordKey, isVocab } from './wordkey.js';
 const DB_NAME = 'espanol';
 const DB_VERSION = 2;
 
@@ -76,6 +77,11 @@ export async function getAllWords() {
   return asPromise(tx(db, 'words', 'readonly').getAll());
 }
 
+// Только слова словаря — без карточек тренажёров (глаголы, исправление ошибок).
+export async function getVocab() {
+  return (await getAllWords()).filter(isVocab);
+}
+
 export async function exportAll() {
   const db = await openDB();
   const words = await asPromise(tx(db, 'words', 'readonly').getAll());
@@ -105,12 +111,13 @@ export async function deleteWord(id) {
   const db = await openDB();
   const w = await asPromise(tx(db, 'words', 'readonly').get(id));
   await asPromise(tx(db, 'words', 'readwrite').delete(id));
-  if (w && w.es) await addTombstone(w.es, w.uid);
+  if (w && w.es) await addTombstone(wordKey(w), w.uid);
 }
 
-export async function addTombstone(es, uid = '', at = Date.now()) {
+// key — ключ карточки (wordKey).
+export async function addTombstone(key, uid = '', at = Date.now()) {
   const list = (await getSetting('deletedWords')) || [];
-  list.push({ key: String(es).trim().toLowerCase(), uid: uid || '', at });
+  list.push({ key: String(key).trim().toLowerCase(), uid: uid || '', at });
   await setSetting('deletedWords', list.slice(-500));
 }
 
@@ -137,7 +144,7 @@ function done(t) {
 export async function replaceWordsPreservingIds(words) {
   const db = await openDB();
   const existing = await asPromise(tx(db, 'words', 'readonly').getAll());
-  const key = (w) => String(w.es || '').trim().toLowerCase();
+  const key = wordKey;
   const byUid = new Map(existing.filter((w) => w.uid).map((w) => [w.uid, w]));
   const byKey = new Map(existing.map((w) => [key(w), w]));
   const t = db.transaction('words', 'readwrite');
