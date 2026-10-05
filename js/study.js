@@ -236,7 +236,7 @@ function renderCard(container) {
       const status = q('#study-status');
       status.textContent = 'Слушаю… говори сейчас';
       try {
-        const heard = await recognizeOnce('es-ES');
+        const heard = await recognizeOnce('es-ES', { expected: current.es, title: 'Скажите по-испански' });
         if (!container.querySelector('#study-back')) return;
         status.textContent = '';
         const r = checkAnswer(current.es, heard);

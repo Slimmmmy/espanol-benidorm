@@ -6,7 +6,6 @@ import { DEFAULT_LIMITS } from './queue.js';
 import { syncNow, localSnapshot, applySnapshot } from './sync.js';
 import { mergeSnapshots } from './merge.js';
 import { getMemory, saveMemory } from './profile.js';
-import { getVoicesAsync, listEsVoices, initVoice, speak, GOOGLE_VOICES, ttsLastError } from './tts.js';
 import { escapeHtml } from './util.js';
 import { icon } from './icons.js';
 
@@ -29,17 +28,6 @@ async function render(container) {
   const supabaseKey = (await getSetting('supabaseKey')) || '';
   const syncCode = (await getSetting('syncCode')) || '';
   const memory = (await getMemory()).join('\n');
-  const voices = await getVoicesAsync();
-  const esVoices = listEsVoices(voices);
-  const voiceURI = (await getSetting('voiceURI')) || '';
-  const voiceRate = String((await getSetting('voiceRate')) || '1');
-  const ttsEngine = (await getSetting('ttsEngine')) || 'google';
-  const googleKey = (await getSetting('googleTtsKey')) || '';
-  const voiceF = (await getSetting('googleVoiceF')) || 'Kore';
-  const voiceM = (await getSetting('googleVoiceM')) || 'Charon';
-  const voiceMain = (await getSetting('googleVoiceMain')) || 'f';
-  const gOptions = (g) => GOOGLE_VOICES.filter((v) => v.gender === g).map((v) => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.label)}</option>`).join('');
-
   container.innerHTML = `
     <h1>Настройки</h1>
     <label>API-ключ Claude
@@ -110,63 +98,8 @@ async function render(container) {
       <textarea id="set-memory" rows="6" placeholder="напр. Зовут Ник&#10;Друзья: Иван, Аня&#10;Цель: разговорный для жизни в Бенидорме"></textarea>
     </label>
     <button id="set-memclear" class="danger">Очистить память</button>
-    <h2>Голос озвучки</h2>
-    <label>Озвучка
-      <select id="set-engine">
-        <option value="google">Google Chirp 3 HD — живой испанский из Испании</option>
-        <option value="device">Голос телефона</option>
-      </select>
-    </label>
-    <div id="set-google">
-      <label>API-ключ Google Cloud
-        <input id="set-gkey" type="password" placeholder="AIza…" autocomplete="off">
-      </label>
-      <label>Женский голос
-        <select id="set-vf">${gOptions('f')}</select>
-      </label>
-      <label>Мужской голос
-        <select id="set-vm">${gOptions('m')}</select>
-      </label>
-      <label>Основной голос (карточки, слова, чат)
-        <select id="set-vmain">
-          <option value="f">Женский</option>
-          <option value="m">Мужской</option>
-        </select>
-      </label>
-      <div class="word-actions">
-        <button id="set-voicesave" class="primary">Сохранить голос</button>
-        <button id="set-test-f">▶︎ Женский</button>
-        <button id="set-test-m">▶︎ Мужской</button>
-      </div>
-      <p id="set-voicestatus" class="status"></p>
-      <details class="tch-extra"><summary>Как получить ключ Google (5 минут)</summary>
-        <ol class="howto">
-          <li>Откройте console.cloud.google.com и создайте проект.</li>
-          <li>Подключите платёжный аккаунт (Billing). Первый миллион символов в месяц для голосов Chirp 3 HD бесплатный, это очень много.</li>
-          <li>В «APIs &amp; Services → Library» найдите <b>Cloud Text-to-Speech API</b> и нажмите Enable.</li>
-          <li>В «APIs &amp; Services → Credentials» нажмите Create credentials → API key. Ключ должен начинаться с <b>AIza</b>. Ключи из Google AI Studio (для Gemini) для озвучки не подходят.</li>
-          <li>Ограничьте ключ: API restrictions → только Cloud Text-to-Speech API; Website restrictions → адрес вашего приложения.</li>
-          <li>Вставьте ключ сюда и нажмите «Сохранить».</li>
-        </ol>
-        <p class="status">В диалогах и сценках персонажи говорят разными голосами. Озвученные фразы сохраняются на телефоне: повтор не тратит лимит и работает без интернета.</p>
-      </details>
-    </div>
-    <h2>Голос телефона</h2>
-    <p class="status">Используется, если выбран «Голос телефона», нет ключа Google или нет интернета.</p>
-    <label>Испанский голос
-      <select id="set-voice">${esVoices.length
-        ? esVoices.map((v) => `<option value="${escapeHtml(v.voiceURI)}">${escapeHtml(v.name)} (${escapeHtml(v.lang)})</option>`).join('')
-        : '<option value="">(испанские голоса не найдены)</option>'}</select>
-    </label>
-    <label>Скорость
-      <select id="set-rate">
-        <option value="1">Обычная</option>
-        <option value="0.9">Чётче (чуть медленнее)</option>
-        <option value="0.8">Медленно</option>
-      </select>
-    </label>
-    <button id="set-voicetest">▶︎ Проверить голос телефона</button>
-    <p class="status">Совет: на iPhone скачай «улучшенный» испанский голос в Настройках iOS → Универсальный доступ → Устный контент → Голоса → Испанский.</p>
+    <h2>Голос и микрофон</h2>
+    <a class="drills-link" href="#voice">${icon('sound', 'ic ic-sm')}<span>Выбрать голос, скорость, проверить микрофон</span>${icon('arrow', 'ic ic-sm')}</a>
     <p id="set-status" class="status"></p>
   `;
   container.querySelector('#set-model').value = model;
@@ -183,17 +116,6 @@ async function render(container) {
   container.querySelector('#set-skey').value = supabaseKey;
   container.querySelector('#set-scode').value = syncCode;
   container.querySelector('#set-memory').value = memory;
-  container.querySelector('#set-voice').value = voiceURI;
-  container.querySelector('#set-engine').value = ttsEngine;
-  container.querySelector('#set-gkey').value = googleKey;
-  container.querySelector('#set-vf').value = voiceF;
-  container.querySelector('#set-vm').value = voiceM;
-  container.querySelector('#set-vmain').value = voiceMain;
-  const syncEngine = () => container.querySelector('#set-google').classList.toggle('hidden', container.querySelector('#set-engine').value !== 'google');
-  container.querySelector('#set-engine').onchange = syncEngine;
-  syncEngine();
-  container.querySelector('#set-rate').value = voiceRate;
-
   const status = container.querySelector('#set-status');
 
   container.querySelector('#set-save').onclick = async () => {
@@ -212,7 +134,6 @@ async function render(container) {
     await setSetting('supabaseKey', container.querySelector('#set-skey').value.trim());
     await setSetting('syncCode', container.querySelector('#set-scode').value.trim());
     await saveMemory(container.querySelector('#set-memory').value.split('\n').map((s) => s.trim()).filter(Boolean));
-    await saveVoice();
     status.textContent = 'Сохранено.';
   };
 
@@ -280,49 +201,6 @@ async function render(container) {
     status.textContent = 'Память наставника очищена.';
   };
 
-  async function saveVoice() {
-    await setSetting('voiceURI', container.querySelector('#set-voice').value);
-    await setSetting('voiceRate', container.querySelector('#set-rate').value);
-    await setSetting('ttsEngine', container.querySelector('#set-engine').value);
-    await setSetting('googleTtsKey', container.querySelector('#set-gkey').value.trim());
-    await setSetting('googleVoiceF', container.querySelector('#set-vf').value);
-    await setSetting('googleVoiceM', container.querySelector('#set-vm').value);
-    await setSetting('googleVoiceMain', container.querySelector('#set-vmain').value);
-    await initVoice();
-  }
-
-  const vstatus = container.querySelector('#set-voicestatus');
-  async function testVoice(gender, text) {
-    await saveVoice();
-    vstatus.textContent = 'Воспроизвожу…';
-    await speak(text, 'es-ES', { gender });
-    const err = ttsLastError();
-    vstatus.textContent = err ? `${err} Прозвучал голос телефона.` : '';
-  }
-
-  container.querySelector('#set-voicesave').onclick = async () => {
-    await saveVoice();
-    vstatus.textContent = 'Голос сохранён.';
-  };
-
-  container.querySelector('#set-test-f').onclick = () => testVoice('f', '¡Hola! ¿Qué tal? Soy de Benidorm. Vale, vamos a practicar un poquito, ¿te parece?');
-  container.querySelector('#set-test-m').onclick = () => testVoice('m', '¡Buenas! ¿Qué te pongo? Hoy tenemos un arroz a banda buenísimo, tío.');
-
-  container.querySelector('#set-voicetest').onclick = async () => {
-    await saveVoice();
-    status.textContent = 'Воспроизвожу…';
-    if (window.speechSynthesis) {
-      const { pickBestVoice } = await import('./tts.js');
-      const u = new SpeechSynthesisUtterance('Hola, soy tu profesor de español. Vamos a practicar la pronunciación.');
-      u.lang = 'es-ES';
-      const v = pickBestVoice(speechSynthesis.getVoices(), container.querySelector('#set-voice').value);
-      if (v) u.voice = v;
-      u.rate = Number(container.querySelector('#set-rate').value) || 1;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(u);
-    }
-    status.textContent = '';
-  };
 }
 
 registerFeature({ id: 'settings', title: 'Настройки', icon: '⚙️', order: 90, render });

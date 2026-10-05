@@ -10,19 +10,14 @@ import { recordActivity } from './activity.js';
 import { recordStudyDay } from './stats.js';
 import { autoSync } from './sync.js';
 import { icon } from './icons.js';
+import { scaleToFit, loadImage, rotated, prepare, photoWarnings, looksLikeSpread } from './photo.js';
 
-const MAX_SIDE = 1600;
+export { scaleToFit };
+
 const MAX_PAGES = 30;
 
 let current = null; // открытая страница
 let busy = false;
-
-// Размер картинки для отправки: длинная сторона не больше max. Чистая функция.
-export function scaleToFit(w, h, max = MAX_SIDE) {
-  if (!w || !h) return { w: 0, h: 0 };
-  const k = Math.min(1, max / Math.max(w, h));
-  return { w: Math.round(w * k), h: Math.round(h * k) };
-}
 
 // Приводит ответ модели к надёжной форме: выровненные абзацы и переводы, пустые поля по умолчанию.
 export function normalizeReading(r) {
@@ -51,28 +46,6 @@ async function savePage(page) {
   const list = (await getPages()).filter((p) => p.id !== page.id);
   list.push(page);
   await savePages(list);
-}
-
-// Фото → JPEG (base64) не больше MAX_SIDE по длинной стороне, с учётом поворота камеры.
-async function fileToJpegB64(file) {
-  let src;
-  try {
-    src = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  } catch (e) {
-    src = await new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('Не получилось открыть фото. Попробуйте другое.'));
-      img.src = URL.createObjectURL(file);
-    });
-  }
-  const { w, h } = scaleToFit(src.width, src.height);
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext('2d').drawImage(src, 0, 0, w, h);
-  const url = canvas.toDataURL('image/jpeg', 0.85);
-  return { b64: url.split(',')[1], preview: canvas.toDataURL('image/jpeg', 0.5) };
 }
 
 // «1 слово», «2 слова», «5 слов».
@@ -133,21 +106,56 @@ async function renderHome(container) {
   });
 }
 
+// Фото → проверка перед отправкой: превью, подсказки по свету и резкости, поворот, страница разворота.
 async function processPhoto(container, file, book) {
   if (busy) return;
-  busy = true;
   const box = container.querySelector('#rd-progress');
   const setBox = (html) => { if (box && container.contains(box)) box.innerHTML = html; };
   try {
     await setSetting('readerBook', book);
     setBox('<p class="status">Готовлю фото…</p>');
-    const { b64, preview } = await fileToJpegB64(file);
-    setBox(`<div class="study-card rd-working"><img class="rd-thumb" src="${preview}" alt="Фото страницы">
+    const src = await loadImage(file);
+    let rot = 0;
+    let work = rotated(src, rot);
+    let part = 'all';
+    const review = () => {
+      const spread = looksLikeSpread(work.width, work.height);
+      const prep = prepare(work, part);
+      const warns = photoWarnings(prep.stats, prep.size);
+      setBox(`<div class="study-card rd-review">
+        <img class="rd-preview" src="${prep.preview}" alt="Фото страницы перед отправкой">
+        ${warns.length ? `<ul class="rd-warn">${warns.map((w) => `<li>${escapeHtml(w)}</li>`).join('')}</ul>` : `<p class="gr-ok">${icon('check', 'ic ic-sm')}Фото чёткое — можно читать</p>`}
+        ${prep.enhanced ? '<p class="muted rd-tip">Контраст подтянут автоматически.</p>' : ''}
+        ${spread ? `<p class="status">Похоже на разворот. Выберите одну страницу — буквы станут крупнее, и распознавание будет точнее.</p>
+          <div class="chip-row" role="group" aria-label="Страница">${[['all', 'Весь разворот'], ['left', 'Левая'], ['right', 'Правая']].map(([id, t]) => `<button type="button" class="chip-btn${part === id ? ' active' : ''}" data-part="${id}" aria-pressed="${part === id}">${t}</button>`).join('')}</div>` : ''}
+        <div class="word-actions">
+          <button type="button" id="rd-rotate" class="ghost">↻ Повернуть</button>
+          <label class="rd-btn" for="${container.querySelector('#rd-camera') ? 'rd-camera' : 'rd-next'}">Переснять</label>
+        </div>
+        <button type="button" id="rd-go" class="big">${icon('reader', 'ic ic-sm')} Читать страницу</button>
+      </div>`);
+      if (!box || !container.contains(box)) return;
+      box.querySelectorAll('[data-part]').forEach((b) => { b.onclick = () => { part = b.dataset.part; review(); }; });
+      box.querySelector('#rd-rotate').onclick = () => { rot = (rot + 90) % 360; work = rotated(src, rot); part = 'all'; review(); };
+      box.querySelector('#rd-go').onclick = () => read(container, box, setBox, prep, book);
+      box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    review();
+  } catch (err) {
+    setBox(`<p class="status">${escapeHtml(err.message)}</p>`);
+  }
+}
+
+async function read(container, box, setBox, prep, book) {
+  if (busy) return;
+  busy = true;
+  try {
+    setBox(`<div class="study-card rd-working"><img class="rd-thumb" src="${prep.preview}" alt="Фото страницы">
       <div><b>Читаю страницу…</b><div class="muted" id="rd-stage" role="status">Распознаю текст</div><div class="muted">Обычно 15–40 секунд.</div></div></div>`);
     const stop = stagedStatus(box.querySelector('#rd-stage'), ['Распознаю текст…', 'Перевожу абзацы…', 'Выбираю новые слова…', 'Отмечаю грамматику…'], 8000);
     const known = (await getVocab()).map((w) => w.es).filter(Boolean);
     let raw;
-    try { raw = await readBookPage(b64, known, book); } finally { stop(); }
+    try { raw = await readBookPage(prep.b64, known, book); } finally { stop(); }
     const r = normalizeReading(raw);
     if (!r.paragraphs.length) {
       setBox(`<p class="status">${escapeHtml(r.summary || 'Не удалось найти на фото испанский текст. Попробуйте сфотографировать ровнее и ближе.')}</p>`);

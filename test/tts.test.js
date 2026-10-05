@@ -27,7 +27,7 @@ test('listEsVoices: только испанские, улучшенный пер
   assert.equal(l[0].voiceURI, 'es-monica');
 });
 
-import { buildGoogleRequest, googleVoiceName, spanishSegments, GOOGLE_VOICES } from '../js/tts.js';
+import { buildGoogleRequest, googleVoiceName, spanishSegments, GOOGLE_VOICES, classifyVoices } from '../js/tts.js';
 
 test('pickBestVoice: голос из Испании важнее «улучшенного» мексиканского', () => {
   const voices = [
@@ -37,13 +37,27 @@ test('pickBestVoice: голос из Испании важнее «улучше�
   assert.equal(pickBestVoice(voices, null).voiceURI, 'g');
 });
 
-test('buildGoogleRequest: голос Chirp 3 HD для es-ES, MP3', () => {
+test('buildGoogleRequest: Chirp 3 HD, несжатый WAV, скорость на стороне Google', () => {
   assert.equal(googleVoiceName('Kore'), 'es-ES-Chirp3-HD-Kore');
+  assert.equal(googleVoiceName('es-ES-Studio-C'), 'es-ES-Studio-C');
   assert.deepEqual(buildGoogleRequest('Hola', 'Charon'), {
     input: { text: 'Hola' },
     voice: { languageCode: 'es-ES', name: 'es-ES-Chirp3-HD-Charon' },
-    audioConfig: { audioEncoding: 'MP3' },
+    audioConfig: { audioEncoding: 'LINEAR16', sampleRateHertz: 24000 },
   });
+  assert.equal(buildGoogleRequest('Hola', 'es-ES-Studio-F', 0.8).audioConfig.speakingRate, 0.8);
+  assert.equal(buildGoogleRequest('Hola', 'es-ES-Studio-F', 0.8).voice.name, 'es-ES-Studio-F');
+});
+
+test('classifyVoices: только es-ES и качественные семейства, Chirp 3 HD первыми', () => {
+  const list = classifyVoices([
+    { name: 'es-ES-Standard-A', languageCodes: ['es-ES'], ssmlGender: 'FEMALE' },
+    { name: 'es-ES-Studio-F', languageCodes: ['es-ES'], ssmlGender: 'MALE' },
+    { name: 'es-ES-Chirp3-HD-Kore', languageCodes: ['es-ES'], ssmlGender: 'FEMALE' },
+    { name: 'es-US-Chirp3-HD-Puck', languageCodes: ['es-US'], ssmlGender: 'MALE' },
+  ]);
+  assert.deepEqual(list.map((v) => [v.id, v.gender, v.family]), [['Kore', 'f', 'Chirp 3 HD'], ['es-ES-Studio-F', 'm', 'Studio']]);
+  assert.ok(list[0].trait);
 });
 
 test('GOOGLE_VOICES: по четыре женских и мужских голоса', () => {
