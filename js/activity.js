@@ -25,7 +25,7 @@ export function mergeActivity(a, b) {
   return out;
 }
 
-const PRACTICE_KINDS = ['lesson', 'assignment', 'roleplay', 'listening', 'dictation', 'speech', 'grammar', 'reading'];
+const PRACTICE_KINDS = ['lesson', 'assignment', 'roleplay', 'listening', 'dictation', 'speech', 'grammar', 'reading', 'story'];
 export const REVIEW_GOAL = 20;
 
 // Цель дня из трёх шагов: повторение, 5 слов, живая практика.

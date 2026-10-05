@@ -4,7 +4,7 @@ import { registerFeature } from './app.js';
 import { getSetting, setSetting } from './db.js';
 import { roleplayReply, debriefRoleplay } from './claude.js';
 import { recognizeOnce, canRecognize } from './asr.js';
-import { speak } from './tts.js';
+import { speak, speakAndWait, stopSpeaking } from './tts.js';
 import { escapeHtml } from './util.js';
 import { enableWordPick, saveWord } from './wordpick.js';
 import { logMistakes } from './mistakes.js';
@@ -30,6 +30,9 @@ let scene = null;
 let history = []; // [{ role, content(сырые реплики для API), es, ru, hint }]
 let busy = false;
 let finished = false;
+// «Разговор без рук»: персонаж говорит → микрофон включается сам → ответ уходит сам.
+let handsFree = false;
+let hfRunning = false;
 
 async function getResults() { return (await getSetting('roleplayHistory')) || []; }
 
@@ -65,8 +68,51 @@ async function aiTurn(container) {
   const r = await roleplayReply(scene, history.map((m) => ({ role: m.role, content: m.content })));
   const msg = { role: 'assistant', content: JSON.stringify(r), es: r.es || '', ru: r.ru || '', hint: r.hint || '' };
   history.push(msg);
-  if ((await getSetting('rpAutoSpeak')) !== false) speak(msg.es, 'es-ES', { gender: scene.voice });
+  if (!handsFree && (await getSetting('rpAutoSpeak')) !== false) speak(msg.es, 'es-ES', { gender: scene.voice });
   if (r.end) finished = true;
+}
+
+// Цикл без рук: озвучить последнюю реплику персонажа, выслушать ученика, отправить. Два «не расслышал» подряд — пауза.
+async function handsFreeLoop(container) {
+  if (hfRunning) return;
+  hfRunning = true;
+  let misses = 0;
+  let spoken = -1;
+  const alive = () => handsFree && !finished && container.querySelector('#rp-log');
+  try {
+    while (alive()) {
+      const i = history.length - 1;
+      if (i >= 0 && history[i].role === 'assistant' && spoken !== i) {
+        setStatus(container, 'Персонаж говорит…');
+        await speakAndWait(history[i].es, 'es-ES', { gender: scene.voice });
+        spoken = i;
+      }
+      if (!alive()) break;
+      setStatus(container, 'Слушаю — отвечайте по-испански…');
+      let heard;
+      try {
+        heard = await recognizeOnce('es-ES');
+      } catch (err) {
+        misses++;
+        if (misses >= 2) { setHandsFree(container, false); setStatus(container, 'Не расслышал. Режим «без рук» на паузе — нажмите его снова, когда будете готовы.'); break; }
+        continue;
+      }
+      misses = 0;
+      if (!alive()) break;
+      setStatus(container, '');
+      await send(container, heard, true);
+    }
+  } finally {
+    hfRunning = false;
+  }
+}
+
+function setHandsFree(container, on) {
+  handsFree = on;
+  const b = container.querySelector('#rp-hf');
+  if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
+  if (on) handsFreeLoop(container);
+  else stopSpeaking();
 }
 
 function setStatus(container, text) {
@@ -92,7 +138,7 @@ async function send(container, text, voice = false) {
 }
 
 function showFinish(container) {
-  ['#rp-bar', '#rp-end'].forEach((sel) => { const el = container.querySelector(sel); if (el) el.classList.add('hidden'); });
+  ['#rp-bar', '#rp-end', '#rp-hf'].forEach((sel) => { const el = container.querySelector(sel); if (el) el.classList.add('hidden'); });
   setStatus(container, '🎬 Сцена завершена.');
 }
 
@@ -172,6 +218,7 @@ function mountScene(container) {
       <input id="rp-input" type="text" placeholder="Tu respuesta…" autocapitalize="sentences">
       <button id="rp-send">➤</button>
     </div>
+    ${canRecognize() ? `<button id="rp-hf" class="ghost hf-btn${handsFree ? ' on' : ''}" aria-pressed="${handsFree}">${icon('mic', 'ic ic-sm')} Разговор без рук</button>` : ''}
     <button id="rp-end" class="ghost">🏁 Завершить и получить разбор</button>
     <div id="rp-debrief"></div>`;
   const input = container.querySelector('#rp-input');
@@ -192,10 +239,13 @@ function mountScene(container) {
       finally { mic.disabled = false; }
     };
   }
-  container.querySelector('#rp-end').onclick = () => debrief(container);
+  container.querySelector('#rp-end').onclick = () => { setHandsFree(container, false); debrief(container); };
+  const hf = container.querySelector('#rp-hf');
+  if (hf) hf.onclick = () => setHandsFree(container, !handsFree);
 }
 
 async function startScene(container, id) {
+  handsFree = false;
   scene = SCENES.find((s) => s.id === id);
   history = [];
   finished = false;
@@ -213,7 +263,8 @@ async function startScene(container, id) {
 
 async function render(container) {
   if (scene && history.length) {
-    // Вернулись на вкладку посреди сцены — продолжаем с того же места.
+    // Вернулись на вкладку посреди сцены — продолжаем с того же места (режим «без рук» выключен).
+    handsFree = false;
     mountScene(container);
     renderLog(container);
     if (finished) showFinish(container);

@@ -272,6 +272,18 @@ export async function speak(text, lang = 'es-ES', opts = {}) {
   return deviceSpeak(clean, lang, opts);
 }
 
+// Озвучить и дождаться конца фразы (нужно, чтобы микрофон включался только после голоса).
+export async function speakAndWait(text, lang = 'es-ES', opts = {}) {
+  const ok = await speak(text, lang, opts);
+  if (!ok || !deviceSpeakAvailable()) return ok;
+  const started = Date.now();
+  // Голос телефона говорит асинхронно: ждём, пока закончит (не дольше 30 с).
+  while (speechSynthesis.speaking && Date.now() - started < 30000) {
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return ok;
+}
+
 // Озвучить диалог: у каждого персонажа свой голос (первый — основной, второй — противоположный пол).
 export async function speakSequence(lines, lang = 'es-ES', opts = {}) {
   stopAll();

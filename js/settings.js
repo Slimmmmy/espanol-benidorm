@@ -8,6 +8,7 @@ import { mergeSnapshots } from './merge.js';
 import { getMemory, saveMemory } from './profile.js';
 import { getVoicesAsync, listEsVoices, initVoice, speak, GOOGLE_VOICES, ttsLastError } from './tts.js';
 import { escapeHtml } from './util.js';
+import { icon } from './icons.js';
 
 async function render(container) {
   const apiKey = (await getSetting('apiKey')) || '';
@@ -57,6 +58,7 @@ async function render(container) {
         <option value="B2+">B2+</option>
       </select>
     </label>
+    <a class="drills-link" href="#placement">${icon('progress', 'ic ic-sm')}<span>Не уверены? Пройти тест уровня — 24 вопроса, 5 минут</span>${icon('arrow', 'ic ic-sm')}</a>
     <h2>Повторение</h2>
     <label>Карточки
       <select id="set-cardmode">

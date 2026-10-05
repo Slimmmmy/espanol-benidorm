@@ -32,7 +32,7 @@ test('planSession: пропускает сделанное и чередует �
   const steps = planSession({ queueLeft: 0, dailyAdded: 5, dailyTotal: 5, dayNum: 1 });
   assert.deepEqual(steps.map((s) => s.id), ['practice', 'summary']);
   assert.equal(steps[0].hash, '#listening');
-  const withCourse = planSession({ dayNum: 3, nextUnit: 'ser y estar' });
+  const withCourse = planSession({ dayNum: 4, nextUnit: 'ser y estar' });
   assert.equal(withCourse.find((s) => s.id === 'practice').hash, '#teacher');
 });
 

@@ -1,9 +1,14 @@
 // JSON-схемы ответов модели (structured outputs): API гарантирует ответ строго этой формы,
 // поэтому разбор JSON больше не ломается. Каждое поле обязательно, лишних полей нет.
+import { MISTAKE_TOPICS } from './curriculum.js';
+
 const str = { type: 'string' };
 const bool = { type: 'boolean' };
 const int = { type: 'integer' };
 const arr = (items) => ({ type: 'array', items });
+// Тема ошибки — только из единого перечня (пустая строка — ошибок нет).
+const topic = { type: 'string', enum: MISTAKE_TOPICS };
+const topicOrNone = { type: 'string', enum: [...MISTAKE_TOPICS, ''] };
 
 export function obj(props) {
   return { type: 'object', properties: props, required: Object.keys(props), additionalProperties: false };
@@ -22,7 +27,7 @@ export const DIALOGUE = obj({
   notes: str,
 });
 
-export const GRAMMAR = obj({ ok: bool, corrected: str, explanation: str, topic: str });
+export const GRAMMAR = obj({ ok: bool, corrected: str, explanation: str, topic: topicOrNone });
 
 export const SPEECH_COACH = obj({ sounds: str, rhythm: str, exercise: str });
 
@@ -56,11 +61,11 @@ export const COURSE_GEN = obj({ units: arr(obj({ title: str, topic: str })) });
 
 export const ASSIGNMENT_GEN = obj({ text: str, topic: str });
 
-export const ASSIGNMENT_CHECK = obj({ ok: bool, feedback: str, corrected: str, topic: str });
+export const ASSIGNMENT_CHECK = obj({ ok: bool, feedback: str, corrected: str, topic: topicOrNone });
 
 export const MEMORY_EXTRACT = obj({
   notes: arr(str),
-  mistakes: arr(obj({ wrong: str, right: str, topic: str })),
+  mistakes: arr(obj({ wrong: str, right: str, topic })),
 });
 
 export const ROLEPLAY = obj({ es: str, ru: str, hint: str, end: bool });
@@ -69,7 +74,7 @@ export const ROLEPLAY_DEBRIEF = obj({
   score: int,
   goalReached: bool,
   summary: str,
-  corrections: arr(obj({ wrong: str, right: str, why: str, topic: str })),
+  corrections: arr(obj({ wrong: str, right: str, why: str, topic })),
   newWords: arr(obj({ es: str, ru: str })),
   tip: str,
 });
@@ -85,3 +90,13 @@ export const READER = obj({
 });
 
 export const CAPTURE = obj({ confident: bool, candidates: arr(obj(WORD)) });
+
+export const STORY = obj({
+  title: str,
+  paragraphs: arr(str),
+  translation: arr(str),
+  newWords: arr(obj({ es: str, ru: str, example: str })),
+  question: str,
+  options: arr(str),
+  answer: int,
+});

@@ -12,7 +12,7 @@ import { icon } from './icons.js';
 import { nounGender, bareNoun } from './exercises.js';
 
 export const SOURCES = {
-  street: 'Улица', book: 'Книга', scene: 'Сценка', daily: 'Слово дня', tap: 'Из текста', manual: 'Вручную',
+  street: 'Улица', book: 'Книга', scene: 'Сценка', daily: 'Слово дня', tap: 'Из текста', manual: 'Вручную', story: 'История', set: 'Набор',
 };
 export const HARD_LAPSES = 4;
 

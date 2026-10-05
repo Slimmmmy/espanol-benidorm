@@ -7,7 +7,7 @@ const ES_NAMES = {
   today: 'Hoy', teacher: 'El profesor', chat: 'Charla', study: 'Repaso', daily: 'Palabras del día',
   roleplay: 'Escenas', dictionary: 'Diccionario', listening: 'Escuchar', speech: 'Pronunciación',
   grammar: 'Gramática', assignments: 'Deberes', progress: 'Progreso', settings: 'Ajustes', reader: 'Lectura',
-  practice: 'Práctica', session: 'La sesión', drills: 'Entrenamiento',
+  practice: 'Práctica', session: 'La sesión', drills: 'Entrenamiento', stories: 'Historias', placement: 'Nivel',
 };
 
 // Пять вкладок вместо четырнадцати разделов. Остальные экраны живут внутри вкладок.
@@ -21,7 +21,7 @@ export const TABS = [
 const TAB_OF = {
   today: 'today', session: 'today', daily: 'today',
   study: 'review', drills: 'review',
-  practice: 'practice', roleplay: 'practice', reader: 'practice', listening: 'practice', speech: 'practice', assignments: 'practice',
+  practice: 'practice', stories: 'practice', roleplay: 'practice', reader: 'practice', listening: 'practice', speech: 'practice', assignments: 'practice',
   chat: 'mentor', teacher: 'mentor', grammar: 'mentor',
   dictionary: 'dictionary',
 };

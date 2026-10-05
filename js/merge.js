@@ -151,6 +151,16 @@ export function mergeReaderPages(a, b) {
   return [...map.values()].sort((x, y) => (x.date || 0) - (y.date || 0)).slice(-30);
 }
 
+// Истории: по id; при конфликте — та, где уже ответили на вопрос.
+export function mergeStories(a, b) {
+  const map = new Map();
+  for (const s of [...(a || []), ...(b || [])]) {
+    const prev = map.get(s.id);
+    if (!prev || (prev.answered == null && s.answered != null)) map.set(s.id, s);
+  }
+  return [...map.values()].sort((x, y) => (x.date || 0) - (y.date || 0)).slice(-20);
+}
+
 export function mergeSettings(a, b) {
   const A = a || {}, B = b || {};
   const out = { ...B, ...A };
@@ -167,6 +177,7 @@ export function mergeSettings(a, b) {
   if (A.roleplayHistory || B.roleplayHistory) out.roleplayHistory = mergeRoleplay(A.roleplayHistory, B.roleplayHistory);
   if (A.readerPages || B.readerPages) out.readerPages = mergeReaderPages(A.readerPages, B.readerPages);
   if (A.inbox || B.inbox) out.inbox = mergeInbox(A.inbox, B.inbox);
+  if (A.stories || B.stories) out.stories = mergeStories(A.stories, B.stories);
   if (A.deletedWords || B.deletedWords) out.deletedWords = mergeTombstones(A.deletedWords, B.deletedWords);
   for (const key of new Set([...Object.keys(A), ...Object.keys(B)])) {
     if (key.startsWith('activity-')) out[key] = mergeActivity(A[key], B[key]);
