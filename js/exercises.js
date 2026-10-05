@@ -8,6 +8,9 @@ export const CARD_TYPES = {
   type: 'Напиши по-испански',
   cloze: 'Вставь слово',
   speak: 'Скажи вслух',
+  gender: 'El или la?',
+  verb: 'Глагол',
+  fix: 'Исправьте ошибку',
 };
 
 const ARTICLES = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas']);
@@ -51,8 +54,24 @@ export function makeCloze(example, es) {
   return null;
 }
 
+const GENDERS = new Set(['el', 'la']);
+export const nounGender = (w) => (w && !w.kind && GENDERS.has(String(w.gender || '').trim().toLowerCase()) ? String(w.gender).trim().toLowerCase() : '');
+
+// Существительное без артикля (для вопроса «el или la?»), с сохранением ударений.
+export function bareNoun(es) {
+  return String(es || '').trim().replace(/^(el|la|los|las|un|una)\s+/i, '');
+}
+
+// Полная форма с артиклем: «perro» + el → «el perro».
+export function withArticle(w) {
+  const g = nounGender(w);
+  if (!g) return w.es;
+  return /^(el|la|los|las)\s/i.test(String(w.es).trim()) ? w.es : `${g} ${w.es}`;
+}
+
 export function availableTypes(word, caps = {}) {
   const types = ['ru-es', 'es-ru', 'type'];
+  if (nounGender(word)) types.push('gender');
   if (caps.tts) types.push('listen');
   if (makeCloze(word.example, word.es)) types.push('cloze');
   if (caps.asr) types.push('speak');
@@ -61,6 +80,8 @@ export function availableTypes(word, caps = {}) {
 
 // Новое слово сначала знакомим классической карточкой, дальше — чередуем типы.
 export function pickCardType(word, caps = {}, mode = 'mixed', rnd = Math.random) {
+  if (word.kind === 'verb') return 'verb';
+  if (word.kind === 'fix') return 'fix';
   if (mode === 'classic' || !(word.reps > 0)) return 'ru-es';
   const types = availableTypes(word, caps);
   return types[Math.min(types.length - 1, Math.floor(rnd() * types.length))];
@@ -73,6 +94,20 @@ export function checkAnswer(expected, got) {
   if (score >= 0.85) return 'ok';
   if (score >= 0.6) return 'close';
   return 'wrong';
+}
+
+// Ответ на «Напиши по-испански» для существительного: без верного артикля — «почти».
+// Возвращает { result, note }.
+export function checkNounAnswer(word, got) {
+  const g = nounGender(word);
+  const expected = withArticle(word);
+  const result = checkAnswer(expected, got);
+  if (!g || result === 'wrong') return { result, note: '' };
+  const first = normalizeText(got).split(' ')[0];
+  const said = { el: 'el', un: 'el', la: 'la', una: 'la' }[first] || '';
+  if (!said) return { result: 'close', note: `Не забудьте артикль: ${expected}` };
+  if (said !== g) return { result: 'close', note: `Род: ${expected}` };
+  return { result, note: '' };
 }
 
 // Пословное сравнение для диктанта: какие слова эталона ученик написал верно (LCS).

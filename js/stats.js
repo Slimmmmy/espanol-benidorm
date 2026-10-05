@@ -53,7 +53,8 @@ export async function getStats() {
   const days = (await getSetting('studyDays')) || [];
   const now = Date.now();
   const due = words.filter((w) => (w.due ?? 0) <= now).length;
-  const learned = words.filter((w) => (w.reps || 0) >= 3).length;
+  const vocab = words.filter((w) => !w.kind);
+  const learned = vocab.filter((w) => (w.reps || 0) >= 3).length;
   const topicMap = {};
   for (const m of mistakes) {
     const t = (m.topic || '').trim();
@@ -63,5 +64,5 @@ export async function getStats() {
     .sort((a, b) => b[1] - a[1])
     .map(([topic, count]) => ({ topic, count }));
   const info = computeStreakInfo(days, dayKey(now));
-  return { words: words.length, learned, due, streak: info.streak, freezes: info.freezes, streakAtRisk: info.atRisk, weak };
+  return { words: vocab.length, learned, due, streak: info.streak, freezes: info.freezes, streakAtRisk: info.atRisk, weak };
 }

@@ -1,7 +1,7 @@
 // «Слово по нажатию»: любое испанское слово в диалогах, чате, уроках и разборах можно тронуть —
 // увидеть перевод, послушать и одним нажатием добавить в словарь (→ в повторение).
 import { enrichWord } from './claude.js';
-import { getAllWords, putWord } from './db.js';
+import { getVocab, putWord } from './db.js';
 import { newCard } from './srs.js';
 import { recordActivity } from './activity.js';
 import { speak } from './tts.js';
@@ -26,7 +26,7 @@ export function findExistingWord(words, es) {
 // Сохранить слово в словарь, если его там ещё нет. Возвращает { status: 'added' | 'exists', id }.
 export async function saveWordWithId(data) {
   if (!data || !data.es) throw new Error('Пустое слово.');
-  const existing = findExistingWord(await getAllWords(), data.es);
+  const existing = findExistingWord(await getVocab(), data.es);
   if (existing) return { status: 'exists', id: existing.id };
   const now = Date.now();
   const id = await putWord({
@@ -80,7 +80,7 @@ async function openPopup(word, context) {
       cache.set(key, w);
     }
     if (!pop.classList.contains('open') || !pop.contains(body)) return;
-    const exists = !!findExistingWord(await getAllWords(), w.es);
+    const exists = !!findExistingWord(await getVocab(), w.es);
     body.innerHTML = `
       <div class="word-main"><b>${e(w.es)}</b> ${w.gender ? `<span class="muted">(${e(w.gender)})</span>` : ''} — ${e(w.ru)}</div>
       ${w.example ? `<div class="word-ex">${e(w.example)}${w.exampleRu ? `<br><span class="muted">${e(w.exampleRu)}</span>` : ''}</div>` : ''}
