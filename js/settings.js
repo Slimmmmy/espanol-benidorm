@@ -3,7 +3,8 @@ import { getSetting, setSetting } from './db.js';
 import { testConnection, DEFAULT_MODEL, DEFAULT_CHAT_MODEL, MODELS, resolveModel } from './claude.js';
 import { downloadReminder, refreshBadge } from './reminders.js';
 import { DEFAULT_LIMITS } from './queue.js';
-import { syncNow } from './sync.js';
+import { syncNow, localSnapshot, applySnapshot } from './sync.js';
+import { mergeSnapshots } from './merge.js';
 import { getMemory, saveMemory } from './profile.js';
 import { getVoicesAsync, listEsVoices, initVoice, speak, GOOGLE_VOICES, ttsLastError } from './tts.js';
 import { escapeHtml } from './util.js';
@@ -94,6 +95,14 @@ async function render(container) {
       <input id="set-scode" type="text">
     </label>
     <button id="set-sync">Синхронизировать сейчас</button>
+    <h2>Резервная копия</h2>
+    <p class="status">Все слова, ошибки, уроки и история в одном файле (без ключей). Сохрани его в «Файлы» или iCloud — восстановление не стирает текущие данные, а объединяет их с копией.</p>
+    <div class="word-actions">
+      <button id="set-backup">⬇︎ Скачать копию</button>
+      <button id="set-restore">⬆︎ Восстановить из файла</button>
+      <input id="set-restore-file" type="file" accept="application/json,.json" hidden>
+    </div>
+    <p id="set-backupstatus" class="status"></p>
     <h2>Память наставника</h2>
     <label>Что наставник о тебе знает (по факту в строке)
       <textarea id="set-memory" rows="6" placeholder="напр. Зовут Ник&#10;Друзья: Иван, Аня&#10;Цель: разговорный для жизни в Бенидорме"></textarea>
@@ -230,6 +239,37 @@ async function render(container) {
     } catch (e) {
       status.textContent = e.message;
     }
+  };
+
+  const bstatus = container.querySelector('#set-backupstatus');
+  const wordsN = (n) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'слово' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'слова' : 'слов'}`;
+  container.querySelector('#set-backup').onclick = async () => {
+    const snap = await localSnapshot();
+    const blob = new Blob([JSON.stringify({ app: 'espanol-benidorm', version: 1, createdAt: Date.now(), ...snap })], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `espanol-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    bstatus.textContent = `Копия скачана: ${wordsN(snap.words.length)}.`;
+  };
+  const fileInput = container.querySelector('#set-restore-file');
+  container.querySelector('#set-restore').onclick = () => fileInput.click();
+  fileInput.onchange = async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!data || !Array.isArray(data.words) || typeof data.settings !== 'object') throw new Error('Это не файл копии Español Benidorm.');
+      const merged = mergeSnapshots(await localSnapshot(), { words: data.words, mistakes: data.mistakes || [], settings: data.settings || {} });
+      await applySnapshot(merged);
+      bstatus.textContent = `Восстановлено: в словаре ${wordsN(merged.words.length)}.`;
+    } catch (e) {
+      bstatus.textContent = e instanceof SyntaxError ? 'Файл повреждён или это не JSON.' : e.message;
+    }
+    fileInput.value = '';
   };
 
   container.querySelector('#set-memclear').onclick = async () => {

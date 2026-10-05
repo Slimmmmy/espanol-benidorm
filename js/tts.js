@@ -109,10 +109,20 @@ async function cacheGet(url) {
   } catch (e) { return null; }
 }
 
+// Кэш озвучки ограничен: самые старые фразы удаляются, чтобы не занимать память телефона.
+export const TTS_CACHE_MAX = 500;
+let putsSinceTrim = TTS_CACHE_MAX; // первая запись в сессии сразу проверяет размер
+
 async function cachePut(url, blob) {
   try {
     if (typeof caches === 'undefined') return;
-    await (await caches.open(TTS_CACHE)).put(url, new Response(blob, { headers: { 'content-type': 'audio/mpeg' } }));
+    const cache = await caches.open(TTS_CACHE);
+    await cache.put(url, new Response(blob, { headers: { 'content-type': 'audio/mpeg' } }));
+    if (++putsSinceTrim >= 25) {
+      putsSinceTrim = 0;
+      const keys = await cache.keys(); // в порядке добавления
+      for (const req of keys.slice(0, Math.max(0, keys.length - TTS_CACHE_MAX))) await cache.delete(req);
+    }
   } catch (e) { /* кэш — необязателен */ }
 }
 

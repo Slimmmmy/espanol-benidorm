@@ -1,4 +1,4 @@
-import { getSetting, setSetting, exportAll, getAllMistakes, bulkReplaceWords, bulkReplaceMistakes } from './db.js';
+import { getSetting, setSetting, exportAll, getAllMistakes, replaceWordsPreservingIds, bulkReplaceMistakes, ensureWordUids } from './db.js';
 import { mergeSnapshots } from './merge.js';
 
 const SECRET_KEYS = ['apiKey', 'supabaseUrl', 'supabaseKey', 'syncCode', 'googleTtsKey'];
@@ -40,6 +40,7 @@ export async function pushRemote(cfg, data) {
 }
 
 export async function localSnapshot() {
+  await ensureWordUids();
   const { settings, words } = await exportAll();
   const mistakes = await getAllMistakes();
   const clean = {};
@@ -50,7 +51,7 @@ export async function localSnapshot() {
 }
 
 export async function applySnapshot(snap) {
-  await bulkReplaceWords(snap.words || []);
+  await replaceWordsPreservingIds(snap.words || []);
   await bulkReplaceMistakes(snap.mistakes || []);
   for (const [k, v] of Object.entries(snap.settings || {})) {
     if (!SECRET_KEYS.includes(k)) await setSetting(k, v);
@@ -66,15 +67,41 @@ export async function syncNow() {
   const local = await localSnapshot();
   const merged = remote ? mergeSnapshots(local, remote) : local;
   await applySnapshot(merged);
-  await pushRemote(cfg, merged);
+  // Если в облаке уже ровно то же самое — не перезаписываем (экономит трафик и не трогает updated_at).
+  if (!remote || stableJson(merged) !== stableJson(remote)) await pushRemote(cfg, merged);
   return merged;
 }
 
-export async function autoSync() {
+// JSON с отсортированными ключами — для сравнения снимков независимо от порядка полей.
+export function stableJson(v) {
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(',')}]`;
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => `${JSON.stringify(k)}:${stableJson(v[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v === undefined ? null : v);
+}
+
+// Фоновая синхронизация без гонок: одновременно идёт не больше одной; вызовы во время работы
+// схлопываются в один повтор после её окончания.
+let running = null;
+let again = null;
+
+async function runAuto() {
   try {
     const cfg = await getSyncConfig();
     if (cfg.url && cfg.key && cfg.code) await syncNow();
   } catch (e) {
     // тихо: офлайн или не настроено — приложение работает локально
   }
+}
+
+export function autoSync() {
+  if (!running) {
+    running = runAuto().finally(() => { running = null; });
+    return running;
+  }
+  if (!again) {
+    again = running.then(() => { again = null; return autoSync(); });
+  }
+  return again;
 }
