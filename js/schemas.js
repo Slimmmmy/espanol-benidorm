@@ -100,3 +100,31 @@ export const STORY = obj({
   options: arr(str),
   answer: int,
 });
+
+// Учебник: теория урока — как разворот учебника (правило, почему, когда, ловушки, диалог, слова).
+const EXAMPLE = obj({ es: str, ru: str, note: str });
+export const TEXTBOOK_THEORY = obj({
+  intro: str,
+  sections: arr(obj({ heading: str, text: str, examples: arr(EXAMPLE) })),
+  traps: arr(obj({ wrong: str, right: str, why: str })),
+  nuances: arr(str),
+  dialogue: obj({ setting: str, lines: arr(obj({ speaker: str, es: str, ru: str })) }),
+  words: arr(obj({ es: str, ru: str, example: str, exampleRu: str })),
+  summary: arr(str),
+});
+
+// Учебник: упражнения по нарастающей; у каждого — тема (для статистики ошибок) и разбор «почему».
+export const TEXTBOOK_EXERCISES = obj({
+  exercises: arr(obj({
+    stage: { type: 'string', enum: ['узнать', 'образовать', 'применить', 'сказать своё'] },
+    type: { type: 'string', enum: ['choice', 'open'] },
+    prompt: str,
+    options: arr(str),
+    answer: int,
+    expected: str,
+    why: str,
+    topic,
+  })),
+});
+
+export const TEXTBOOK_ASK = obj({ answer: str, examples: arr(EXAMPLE) });

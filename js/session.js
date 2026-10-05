@@ -5,7 +5,7 @@ import { getActivity } from './activity.js';
 import { getAllWords, getSetting } from './db.js';
 import { buildQueue } from './queue.js';
 import { getLimits } from './reminders.js';
-import { getCourse } from './profile.js';
+import { nextLessonTitle } from './teacher.js';
 import { getStats, dayKey } from './stats.js';
 import { dayWord } from './today.js';
 import { escapeHtml } from './util.js';
@@ -33,7 +33,7 @@ export function planSession({ queueLeft = 0, dailyAdded = 0, dailyTotal = 5, nex
     steps.push({ id: 'words', title: 'Новые слова', hint: 'слова дня', hash: '#daily', minutes: 3 });
   }
   const options = [...PRACTICE_ROTATION];
-  if (nextUnit) options.push({ hash: '#teacher', title: 'Урок курса', hint: nextUnit, kinds: ['lesson'], minutes: 6 });
+  if (nextUnit) options.push({ hash: '#teacher', title: 'Урок учебника', hint: nextUnit, kinds: ['lesson'], minutes: 10 });
   const p = options[((dayNum % options.length) + options.length) % options.length];
   steps.push({ id: 'practice', title: p.title, hint: p.hint, hash: p.hash, kinds: p.kinds, minutes: p.minutes });
   steps.push({ id: 'summary', title: 'Итог', hint: 'что сделано сегодня', hash: '#session', minutes: 1 });
@@ -79,17 +79,16 @@ function saveSession(s) {
 }
 
 async function dayState() {
-  const [words, limits, activity, daily, course] = await Promise.all([
-    getAllWords(), getLimits(), getActivity(), getSetting(`daily-${dayKey(Date.now())}`), getCourse(),
+  const [words, limits, activity, daily, nextLesson] = await Promise.all([
+    getAllWords(), getLimits(), getActivity(), getSetting(`daily-${dayKey(Date.now())}`), nextLessonTitle(),
   ]);
   const dw = (daily && daily.words) || [];
-  const next = course && course.units ? course.units.find((u) => u.status !== 'done') : null;
   return {
     queueLeft: buildQueue(words, Date.now(), limits).queue.length,
     activity,
     dailyAdded: dw.filter((w) => w.added).length,
     dailyTotal: dw.length || 5,
-    nextUnit: next ? (next.topic || next.title) : '',
+    nextUnit: nextLesson,
   };
 }
 

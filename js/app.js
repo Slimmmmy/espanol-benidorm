@@ -4,7 +4,7 @@ import { icon } from './icons.js';
 const features = [];
 // Испанское название раздела — показывается мелкой строкой над заголовком экрана.
 const ES_NAMES = {
-  today: 'Hoy', teacher: 'El profesor', chat: 'Charla', study: 'Repaso', daily: 'Palabras del día',
+  today: 'Hoy', teacher: 'El libro', chat: 'Charla', study: 'Repaso', daily: 'Palabras del día',
   roleplay: 'Escenas', dictionary: 'Diccionario', listening: 'Escuchar', speech: 'Pronunciación',
   grammar: 'Gramática', assignments: 'Deberes', progress: 'Progreso', settings: 'Ajustes', reader: 'Lectura',
   practice: 'Práctica', session: 'La sesión', drills: 'Entrenamiento', stories: 'Historias', placement: 'Nivel', voice: 'Voz', notify: 'Avisos',
@@ -28,7 +28,7 @@ const TAB_OF = {
 // Наставник — один «человек»: чат, уроки курса и проверка фразы переключаются сверху.
 export const MENTOR_VIEWS = [
   { id: 'chat', title: 'Чат' },
-  { id: 'teacher', title: 'Уроки' },
+  { id: 'teacher', title: 'Учебник' },
   { id: 'grammar', title: 'Фраза' },
 ];
 

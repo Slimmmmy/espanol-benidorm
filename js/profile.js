@@ -2,6 +2,7 @@ import { getSetting, setSetting, getAllWords } from './db.js';
 import { getStats } from './stats.js';
 import { freqCoverage } from './freq.js';
 import { TENSES } from './verbs.js';
+import { nextStep, isPassed, STEPS } from './textbook.js';
 
 export function pickNextTopic(weak, lastTopic) {
   if (!weak || weak.length === 0) return 'Общая практика грамматики';
@@ -31,6 +32,9 @@ export async function buildProfile() {
   const memory = (await getSetting('tutorMemory')) || [];
   const goal = (await getSetting('goal')) || '';
   const placement = await getSetting('placement');
+  const tb = (await getSetting('textbook')) || { done: {} };
+  const tbNext = nextStep(tb, level);
+  const tbPassed = STEPS.filter((s) => isPassed((tb.done || {})[s.id])).map((s) => s.title);
   const cov = freqCoverage(words);
   return {
     level,
@@ -44,6 +48,7 @@ export async function buildProfile() {
     note: tp.note || '',
     lastTopic: tp.lastTopic || '',
     lessonsCompleted: history.length,
+    textbook: tbNext ? `сейчас в учебнике: ${tbNext.title} (${tbNext.level}); пройдено уроков: ${tbPassed.length}` : 'учебник пройден',
     memory,
   };
 }

@@ -34,7 +34,7 @@ export function mistakesFromLesson(lesson, answers, results, now = Date.now()) {
     const m = normalizeMistake({
       phrase,
       corrected,
-      topic: lesson.topic,
+      topic: ex.topic || lesson.topic,
     }, 'lesson', now + i);
     if (m) out.push(m);
   });
