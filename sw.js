@@ -1,5 +1,5 @@
 // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
-const CACHE = 'espanol-v31';
+const CACHE = 'espanol-v32';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css', './css/fonts.css',
   './fonts/unbounded-normal-cyrillic.woff2', './fonts/unbounded-normal-latin.woff2',
@@ -21,7 +21,7 @@ const SHELL = [
   './js/wordpick.js', './js/reminders.js', './js/roleplay.js', './js/reader.js', './js/capture.js',
   './js/schemas.js', './js/session.js', './js/practice.js', './js/onboarding.js',
   './js/wordkey.js', './js/verbs.js', './js/sets.js', './js/drills.js',
-  './js/freq.js', './js/curriculum.js', './js/placement.js', './js/stories.js', './js/phonetics.js', './js/voice.js', './js/photo.js',
+  './js/freq.js', './js/curriculum.js', './js/placement.js', './js/stories.js', './js/phonetics.js', './js/voice.js', './js/photo.js', './js/notify.js',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
@@ -51,4 +51,28 @@ self.addEventListener('fetch', (e) => {
       .then((c) => c.match(e.request, { ignoreSearch: e.request.mode === 'navigate' }))
       .then((cached) => cached || fetch(e.request))
   );
+});
+
+// ── Напоминания (push) ─────────────────────────────────
+self.addEventListener('push', (e) => {
+  let msg = { title: 'Español', body: 'Пора заниматься!', url: './#today' };
+  try { if (e.data) msg = { ...msg, ...e.data.json() }; } catch (err) { /* текст по умолчанию */ }
+  e.waitUntil(self.registration.showNotification(msg.title, {
+    body: msg.body,
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag: 'espanol-reminder',
+    data: { url: msg.url || './#today' },
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) {
+      if ('focus' in c) { c.navigate(url).catch(() => {}); return c.focus(); }
+    }
+    return self.clients.openWindow(url);
+  }));
 });

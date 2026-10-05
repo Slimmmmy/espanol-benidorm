@@ -1,7 +1,7 @@
 import { getSetting, setSetting, exportAll, getAllMistakes, replaceWordsPreservingIds, bulkReplaceMistakes, ensureWordUids } from './db.js';
 import { mergeSnapshots } from './merge.js';
 
-const SECRET_KEYS = ['apiKey', 'supabaseUrl', 'supabaseKey', 'syncCode', 'googleTtsKey'];
+const SECRET_KEYS = ['apiKey', 'supabaseUrl', 'supabaseKey', 'syncCode', 'googleTtsKey', 'vapid', 'pushEndpoint'];
 
 export async function getSyncConfig() {
   return {
@@ -104,4 +104,21 @@ export function autoSync() {
     again = running.then(() => { again = null; return autoSync(); });
   }
   return again;
+}
+
+// Отдельные строки таблицы sync (например, «код:push» — подписка на напоминания). Пусто — null.
+export async function getRow(cfg, code) {
+  let res;
+  try {
+    res = await fetch(`${cfg.url}/rest/v1/sync?code=eq.${encodeURIComponent(code)}&select=data`, {
+      headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}` },
+    });
+  } catch (e) { throw new Error('Нет сети.'); }
+  if (!res.ok) throw new Error(`Ошибка чтения из облака (${res.status}).`);
+  const rows = await res.json();
+  return rows && rows[0] ? rows[0].data : null;
+}
+
+export async function putRow(cfg, code, data) {
+  await pushRemote({ ...cfg, code }, data);
 }

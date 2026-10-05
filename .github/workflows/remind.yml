@@ -1,0 +1,30 @@
+# Ежедневные напоминания (push на iPhone). Работает, только если задан секрет PUSH_CONFIG —
+# его показывает приложение на экране «Напоминания».
+name: remind
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Прислать сейчас: test, morning или evening'
+        required: false
+        default: 'test'
+concurrency: remind
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Отправить напоминание
+        env:
+          PUSH_CONFIG: ${{ secrets.PUSH_CONFIG }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || '' }}
+        run: |
+          if [ -z "$PUSH_CONFIG" ]; then echo "PUSH_CONFIG не задан — пропускаю."; exit 0; fi
+          npm install --no-save --no-package-lock web-push@3
+          node scripts/remind.mjs

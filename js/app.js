@@ -7,7 +7,7 @@ const ES_NAMES = {
   today: 'Hoy', teacher: 'El profesor', chat: 'Charla', study: 'Repaso', daily: 'Palabras del día',
   roleplay: 'Escenas', dictionary: 'Diccionario', listening: 'Escuchar', speech: 'Pronunciación',
   grammar: 'Gramática', assignments: 'Deberes', progress: 'Progreso', settings: 'Ajustes', reader: 'Lectura',
-  practice: 'Práctica', session: 'La sesión', drills: 'Entrenamiento', stories: 'Historias', placement: 'Nivel', voice: 'Voz',
+  practice: 'Práctica', session: 'La sesión', drills: 'Entrenamiento', stories: 'Historias', placement: 'Nivel', voice: 'Voz', notify: 'Avisos',
 };
 
 // Пять вкладок вместо четырнадцати разделов. Остальные экраны живут внутри вкладок.
@@ -89,7 +89,7 @@ function openProfile(activeId) {
     document.body.appendChild(sheet);
     sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
   }
-  const items = [['progress', 'Прогресс', 'progress'], ['voice', 'Голос и микрофон', 'sound'], ['settings', 'Настройки', 'settings']];
+  const items = [['progress', 'Прогресс', 'progress'], ['voice', 'Голос и микрофон', 'sound'], ['notify', 'Напоминания', 'bell'], ['settings', 'Настройки', 'settings']];
   sheet.innerHTML = `<div class="more-panel" role="dialog" aria-label="Профиль"><div class="more-grip"></div>${
     items.map(([id, title, ic]) => `<a class="more-item${id === activeId ? ' active' : ''}" href="#${id}">${icon(ic, 'more-icon')}<span>${title}</span><span class="more-es">${ES_NAMES[id]}</span></a>`).join('')
   }</div>`;

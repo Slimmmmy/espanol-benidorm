@@ -33,6 +33,7 @@
     import './js/stories.js';
     import './js/placement.js';
     import './js/voice.js';
+    import { refreshPushSubscription } from './js/notify.js';
     import { initAsr } from './js/asr.js';
     import './js/teacher.js';
     import './js/chat.js';
@@ -54,6 +55,7 @@
     initCapture();
     await initVoice();
     initAsr().catch(() => {});
+    refreshPushSubscription();
     // После синхронизации разбираем слова, которые пришли с других устройств (например, из команды iPhone).
     autoSync().then(processQueue);
     document.addEventListener('visibilitychange', () => {
