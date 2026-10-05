@@ -1,7 +1,7 @@
 import { registerFeature } from './app.js';
 import { getSetting, setSetting } from './db.js';
 import { testConnection, DEFAULT_MODEL, DEFAULT_CHAT_MODEL, MODELS, resolveModel } from './claude.js';
-import { downloadReminder, refreshBadge } from './reminders.js';
+import { refreshBadge } from './reminders.js';
 import { DEFAULT_LIMITS } from './queue.js';
 import { syncNow, localSnapshot, applySnapshot } from './sync.js';
 import { mergeSnapshots } from './merge.js';
@@ -16,7 +16,6 @@ async function render(container) {
   const cardMode = (await getSetting('cardMode')) || 'mixed';
   const maxNew = String((await getSetting('maxNew')) || DEFAULT_LIMITS.maxNew);
   const maxReviews = String((await getSetting('maxReviews')) || DEFAULT_LIMITS.maxReviews);
-  const remindTime = (await getSetting('remindTime')) || '19:00';
   const badge = (await getSetting('badge')) !== false;
   const rpAutoSpeak = (await getSetting('rpAutoSpeak')) !== false;
   const modelOptions = (current) => {
@@ -67,12 +66,8 @@ async function render(container) {
     <label class="check-row"><input id="set-rpspeak" type="checkbox"> Сценки: сразу озвучивать реплики персонажа</label>
     <button id="set-save">Сохранить</button>
     <button id="set-test">Проверить связь</button>
-    <h2>Напоминание</h2>
-    <label>Время ежедневного напоминания
-      <input id="set-remind" type="time">
-    </label>
-    <button id="set-ics">📅 Добавить в календарь</button>
-    <p class="status">Скачается файл события — открой его, и календарь будет каждый день напоминать о занятии (на iPhone: «Добавить все»).</p>
+    <h2>Напоминания</h2>
+    <a class="drills-link" href="#notify">${icon('bell', 'ic ic-sm')}<span>Уведомления утром и вечером — настроить</span>${icon('arrow', 'ic ic-sm')}</a>
     <label class="check-row"><input id="set-badge" type="checkbox"> Число карточек на иконке приложения</label>
     <h2>Синхронизация (между устройствами)</h2>
     <label>Supabase URL
@@ -107,7 +102,6 @@ async function render(container) {
   container.querySelector('#set-cardmode').value = cardMode;
   container.querySelector('#set-maxnew').value = maxNew;
   container.querySelector('#set-maxrev').value = maxReviews;
-  container.querySelector('#set-remind').value = remindTime;
   container.querySelector('#set-badge').checked = badge;
   container.querySelector('#set-rpspeak').checked = rpAutoSpeak;
   container.querySelector('#set-level').value = level;
@@ -125,7 +119,6 @@ async function render(container) {
     await setSetting('cardMode', container.querySelector('#set-cardmode').value);
     await setSetting('maxNew', Number(container.querySelector('#set-maxnew').value));
     await setSetting('maxReviews', Number(container.querySelector('#set-maxrev').value));
-    await setSetting('remindTime', container.querySelector('#set-remind').value || '19:00');
     await setSetting('badge', container.querySelector('#set-badge').checked);
     await setSetting('rpAutoSpeak', container.querySelector('#set-rpspeak').checked);
     refreshBadge();
@@ -135,13 +128,6 @@ async function render(container) {
     await setSetting('syncCode', container.querySelector('#set-scode').value.trim());
     await saveMemory(container.querySelector('#set-memory').value.split('\n').map((s) => s.trim()).filter(Boolean));
     status.textContent = 'Сохранено.';
-  };
-
-  container.querySelector('#set-ics').onclick = async () => {
-    const t = container.querySelector('#set-remind').value || '19:00';
-    await setSetting('remindTime', t);
-    downloadReminder(t);
-    status.textContent = `Файл напоминания на ${t} скачан — открой его, чтобы добавить в календарь.`;
   };
 
   container.querySelector('#set-test').onclick = async () => {

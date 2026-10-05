@@ -854,3 +854,10 @@ button.hub-tile { margin: 0; text-align: left; font-weight: 400; align-items: fl
 .asr-btns button { margin: 0; padding: 10px 14px; }
 .rd-preview { display: block; max-width: 100%; max-height: 360px; margin: 0 auto 10px; border-radius: var(--r-sm); border: 1px solid var(--line); }
 .rd-warn { margin: 8px 0; padding-left: 18px; color: var(--warn); display: grid; gap: 4px; }
+
+/* ── Напоминания ───────────────────────────────────── */
+.ntf-steps { display: grid; gap: 8px; }
+.ntf-step { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
+.ntf-step.done .goal-check { background: var(--ok); border-color: var(--ok); }
+.ntf-step .muted { font-size: .875rem; margin-top: 2px; }
+#ntf-secret { font-family: ui-monospace, Menlo, monospace; font-size: .75rem; }
