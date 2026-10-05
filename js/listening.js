@@ -6,6 +6,7 @@ import { diffWords } from './exercises.js';
 import { enableWordPick } from './wordpick.js';
 import { recordActivity } from './activity.js';
 import { getSetting } from './db.js';
+import { icon } from './icons.js';
 
 const TOPICS = [
   'В баре заказать кофе и тапас',
@@ -32,7 +33,7 @@ function linesHtml(d) {
     <div class="dlg-line">
       <span class="dlg-speaker">${e(l.speaker)}:</span>
       <span class="dlg-es">${e(l.es)}</span>
-      <span class="dlg-btns" data-nopick><button class="mini" data-line="${i}" title="Повторить фразу">🔊</button><button class="mini" data-slow="${i}" title="Медленно">🐢</button></span>
+      <span class="dlg-btns" data-nopick><button class="mini" data-line="${i}" aria-label="Повторить фразу">${icon('sound', 'ic ic-sm')}</button><button class="mini" data-slow="${i}" aria-label="Медленно">0.7×</button></span>
       <span class="dlg-ru muted hidden">${e(l.ru)}</span></div>`).join('');
 }
 
@@ -45,8 +46,8 @@ function dialogueHtml(d) {
       <h2>${e(d.title)}</h2>
       <div class="dlg-controls">
         <button id="lst-play">▶︎ Прослушать</button>
-        <button id="lst-slow">🐢 Медленно</button>
-        <button id="lst-stop">⏹</button>
+        <button id="lst-slow">Медленно 0.7×</button>
+        <button id="lst-stop" aria-label="Остановить">${icon('close', 'ic ic-sm')}</button>
         <button id="lst-trans">Показать перевод</button>
         <button id="lst-dict">✍️ Диктант</button>
       </div>
@@ -66,7 +67,7 @@ function dictationHtml(d) {
       ${d.lines.map((l, i) => `
         <div class="dict-row">
           <div><span class="dlg-speaker">${e(l.speaker)}:</span>
-            <button class="mini" data-line="${i}">🔊</button><button class="mini" data-slow="${i}">🐢</button></div>
+            <button class="mini" data-line="${i}" aria-label="Повторить фразу">${icon('sound', 'ic ic-sm')}</button><button class="mini" data-slow="${i}" aria-label="Медленно">0.7×</button></div>
           <input data-dict="${i}" type="text" autocapitalize="off" autocomplete="off" placeholder="Что ты услышал?">
           <div class="dict-res" data-res="${i}"></div>
         </div>`).join('')}

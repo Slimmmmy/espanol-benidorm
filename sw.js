@@ -1,5 +1,5 @@
 // Service worker: кэш оболочки для офлайна. Версию бампать при изменении файлов.
-const CACHE = 'espanol-v27';
+const CACHE = 'espanol-v28';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/styles.css', './css/fonts.css',
   './fonts/unbounded-normal-cyrillic.woff2', './fonts/unbounded-normal-latin.woff2',
@@ -19,7 +19,7 @@ const SHELL = [
   './js/merge.js', './js/sync.js',
   './js/fsrs.js', './js/queue.js', './js/exercises.js', './js/mistakes.js', './js/activity.js',
   './js/wordpick.js', './js/reminders.js', './js/roleplay.js', './js/reader.js', './js/capture.js',
-  './js/schemas.js',
+  './js/schemas.js', './js/session.js', './js/practice.js', './js/onboarding.js',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

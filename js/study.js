@@ -27,10 +27,10 @@ const GRADE_BTNS = [
 
 function renderEmpty(container) {
   const more = held > 0
-    ? `<p class="status">Дневной лимит выполнен 💪 Ещё ${held} карточек ждут — можно продолжить, но лучше вернуться завтра.</p>
+    ? `<p class="status">Дневной лимит выполнен. Ещё ${held} карточек ждут — можно продолжить, но лучше вернуться завтра.</p>
        <button id="study-more">Позаниматься ещё</button>`
-    : '<p class="status">На сегодня всё повторено 🎉<br>Добавь слова во вкладке «Словарь» или «5 слов», или вернись позже.</p>';
-  container.innerHTML = `<h1>Учить</h1>${more}`;
+    : '<p class="status">На сегодня всё повторено.<br>Новые слова — в «Словаре» и в «5 словах дня» на вкладке «Сегодня».</p>';
+  container.innerHTML = `<h1>Повторение</h1>${more}`;
   const btn = container.querySelector('#study-more');
   if (btn) btn.onclick = () => loadQueue(container, true);
   refreshBadge(0);
@@ -41,7 +41,8 @@ function gradeRowHtml(suggest) {
   return `<div class="grade-row grade-4">${GRADE_BTNS.map((b) => {
     const label = intervalLabel(fsrsSchedule(current, b.g, now), now);
     const hl = suggest === b.g ? ' suggested' : '';
-    return `<button class="${b.cls}${hl}" data-g="${b.g}">${b.label}<small>${label}</small></button>`;
+    const key = GRADE_BTNS.indexOf(b) + 1;
+    return `<button class="${b.cls}${hl}" data-g="${b.g}" aria-label="${b.label}, следующий повтор через ${label}" aria-keyshortcuts="${key}">${b.label}<small>${label}</small></button>`;
   }).join('')}</div>`;
 }
 
@@ -52,14 +53,14 @@ function answerHtml(w, suggest) {
     ${showEs ? `<div class="study-es"><b>${e(w.es)}</b> ${w.gender ? `<span class="muted">(${e(w.gender)})</span>` : ''}</div>` : ''}
     <div class="study-ru">${e(w.ru)}</div>
     ${w.example ? `<div class="word-ex">${e(w.example)}${w.exampleRu ? `<br><span class="muted">${e(w.exampleRu)}</span>` : ''}</div>` : ''}
-    <button id="study-say">🔊 Озвучить</button>
+    <button id="study-say">${icon('sound', 'ic ic-sm')} Озвучить</button>
     ${gradeRowHtml(suggest)}`;
 }
 
 function verdictHtml(result, said) {
   const e = escapeHtml;
-  const label = { ok: '✅ Верно!', close: '🟡 Почти — сравни с ответом', wrong: '❌ Не совсем' }[result];
-  return `<div class="${result === 'ok' ? 'gr-ok' : 'gr-bad'}">${label}</div>${said ? `<div class="word-ex">Твой ответ: «${e(said)}»</div>` : ''}`;
+  const label = { ok: 'Верно!', close: 'Почти — сравните с ответом', wrong: 'Не совсем' }[result];
+  return `<div class="${result === 'ok' ? 'gr-ok' : 'gr-bad'}" role="status">${result === 'ok' ? icon('check', 'ic ic-sm') : ''}${label}</div>${said ? `<div class="word-ex">Твой ответ: «${e(said)}»</div>` : ''}`;
 }
 
 const SUGGEST = { ok: 'good', close: 'hard', wrong: 'again' };
@@ -68,9 +69,9 @@ function frontHtml(w, type) {
   const e = escapeHtml;
   switch (type) {
     case 'es-ru':
-      return `<div class="study-front es"><b>${e(w.es)}</b></div><button id="study-hear">🔊 Послушать</button>`;
+      return `<div class="study-front es" lang="es"><b>${e(w.es)}</b></div><button id="study-hear">${icon('sound', 'ic ic-sm')} Послушать</button>`;
     case 'listen':
-      return `<div class="study-listen">${icon('listening')}</div><button id="study-hear">🔊 Прослушать ещё раз</button>`;
+      return `<div class="study-listen" role="img" aria-label="Слово звучит — угадайте на слух">${icon('listening')}</div><button id="study-hear">${icon('sound', 'ic ic-sm')} Прослушать ещё раз</button>`;
     case 'type':
       return `<div class="study-front"><b>${e(w.ru)}</b></div>
         <input id="study-input" type="text" placeholder="Напиши по-испански…" autocapitalize="off" autocomplete="off">
@@ -83,7 +84,7 @@ function frontHtml(w, type) {
         <button id="study-check">Проверить</button>`;
     }
     case 'speak':
-      return `<div class="study-front"><b>${e(w.ru)}</b></div><button id="study-speak">🎤 Сказать по-испански</button>`;
+      return `<div class="study-front"><b>${e(w.ru)}</b></div><button id="study-speak">${icon('mic', 'ic ic-sm')} Сказать по-испански</button>`;
     default:
       return `<div class="study-front"><b>${e(w.ru)}</b></div>`;
   }
@@ -128,11 +129,11 @@ function renderCard(container) {
   if (currentType === 'cloze' && !makeCloze(current.example, current.es)) currentType = 'ru-es';
   const needsReveal = ['ru-es', 'es-ru', 'listen'].includes(currentType);
   container.innerHTML = `
-    <h1>Учить <span class="muted">(осталось ${queue.length})</span></h1>
+    <h1>Повторение <span class="muted">(осталось ${queue.length})</span></h1>
     <div class="study-card">
       <div class="study-type">${escapeHtml(CARD_TYPES[currentType])}</div>
       ${frontHtml(current, currentType)}
-      ${needsReveal ? '<button id="study-reveal">Показать ответ</button>' : '<button id="study-giveup" class="ghost">Не знаю — показать</button>'}
+      ${needsReveal ? '<button id="study-reveal" aria-keyshortcuts="Space">Показать ответ</button>' : '<button id="study-giveup" class="ghost">Не знаю — показать</button>'}
       <p id="study-status" class="status"></p>
       <div id="study-back" class="hidden"></div>
     </div>`;
@@ -189,11 +190,40 @@ async function loadQueue(container, ignoreLimits = false) {
   renderCard(container);
 }
 
+// Клавиатура (Mac, iPad с клавиатурой): пробел/Enter — показать ответ, 1–4 — оценка.
+export function keyAction(key, { revealed, typing }) {
+  if (!revealed) return !typing && (key === ' ' || key === 'Enter') ? { reveal: true } : null;
+  const i = ['1', '2', '3', '4'].indexOf(key);
+  return i >= 0 ? { grade: GRADE_BTNS[i].g } : null;
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('keydown', (ev) => {
+    const container = document.querySelector('#screen[data-screen="study"]');
+    if (!container || !container.querySelector('.study-card') || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const back = container.querySelector('#study-back');
+    const revealed = back && !back.classList.contains('hidden');
+    const t = ev.target;
+    const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && !t.disabled;
+    const act = keyAction(ev.key, { revealed, typing });
+    if (!act) return;
+    if (act.reveal) {
+      const btn = container.querySelector('#study-reveal:not(.hidden)');
+      if (!btn) return;
+      ev.preventDefault();
+      btn.click();
+    } else if (act.grade) {
+      ev.preventDefault();
+      grade(container, act.grade);
+    }
+  });
+}
+
 async function render(container) {
   current = null;
-  container.innerHTML = '<h1>Учить</h1><p class="status" id="study-loading">Загрузка…</p>';
+  container.innerHTML = '<h1>Повторение</h1><p class="status" id="study-loading">Загрузка…</p>';
   mode = (await getSetting('cardMode')) || 'mixed';
   await loadQueue(container);
 }
 
-registerFeature({ id: 'study', title: 'Учить', icon: '🎓', order: 10, render });
+registerFeature({ id: 'study', title: 'Повторение', icon: '🎓', order: 10, render });

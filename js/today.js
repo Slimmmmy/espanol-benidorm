@@ -7,6 +7,8 @@ import { buildQueue } from './queue.js';
 import { getActivity, dailyGoal } from './activity.js';
 import { getLimits, refreshBadge } from './reminders.js';
 import { icon } from './icons.js';
+import { loadSession, startSession, planSession, totalMinutes } from './session.js';
+import { renderOnboarding, needsOnboarding } from './onboarding.js';
 
 export function summarizeToday({ stats, course, assignments, daily } = {}) {
   const dw = (daily && daily.words) || [];
@@ -59,14 +61,26 @@ function ringSvg(done, total) {
   </svg>`;
 }
 
+function sessionCta(session, goal, plan) {
+  if (session) {
+    const st = session.steps[session.idx];
+    return `<button class="session-cta" data-go="${escapeHtml(st.hash)}">
+      <span class="cta-icon">${icon('play')}</span>
+      <span class="cta-text"><b>Продолжить занятие</b><span>Шаг ${session.idx + 1} из ${session.steps.length}: ${escapeHtml(st.title)}</span></span>
+    </button>`;
+  }
+  const mins = totalMinutes(plan);
+  return `<button class="session-cta${goal.complete ? ' quiet' : ''}" id="td-start">
+    <span class="cta-icon">${icon('play')}</span>
+    <span class="cta-text"><b>${goal.complete ? 'Ещё одно занятие' : 'Начать занятие'}</b><span>${plan.map((x) => escapeHtml(x.title)).filter((t) => t !== 'Итог').join(' → ')} · ~${mins} мин</span></span>
+  </button>`;
+}
+
 function goalHtml(goal) {
   const e = escapeHtml;
   const left = goal.total - goal.done;
-  const steps = goal.steps.map((st) => `
-    <button class="goal-step${st.done ? ' done' : ''}" data-go="${e(st.hash)}">
-      <span class="goal-check">${st.done ? icon('check') : ''}</span>
-      <span class="goal-text"><b>${e(st.title)}</b><span class="muted">${e(st.hint)}</span></span>
-    </button>`).join('');
+  // Шаги цели — одной строкой: подробный маршрут теперь в кнопке «Начать занятие».
+  const steps = goal.steps.map((st) => `<span class="goal-pill${st.done ? ' done' : ''}">${st.done ? icon('check', 'ic ic-sm') : ''}${e(st.title)}</span>`).join('');
   const head = goal.complete
     ? '<div class="goal-title">Цель дня выполнена</div><div class="goal-sub es">¡Muy bien! Hasta mañana.</div>'
     : `<div class="goal-title">Цель дня</div><div class="goal-sub">${left === 1 ? 'Остался один шаг' : `Осталось шагов: ${left}`}</div>`;
@@ -75,7 +89,7 @@ function goalHtml(goal) {
       <div class="goal-ringbox" role="img" aria-label="Выполнено ${goal.done} из ${goal.total}">${ringSvg(goal.done, goal.total)}<span class="goal-count">${goal.done}<small>/${goal.total}</small></span></div>
       <div>${head}</div>
     </div>
-    <div class="goal-steps">${steps}</div>
+    <div class="goal-pills">${steps}</div>
   </section>`;
 }
 
@@ -97,6 +111,7 @@ function heroHtml(stats) {
 }
 
 async function render(container) {
+  if (await needsOnboarding()) { renderOnboarding(container, () => render(container)); return; }
   container.innerHTML = '<p class="status" id="td-loading">Загрузка…</p>';
   const [stats, course, assignments, daily, words, limits, activity] = await Promise.all([
     getStats(),
@@ -114,6 +129,9 @@ async function render(container) {
   refreshBadge(queueLeft);
 
   const dailyDone = s.dailyTotal > 0 && s.dailyAdded >= s.dailyTotal;
+  const nextUnit = course && course.units ? course.units.find((u) => u.status !== 'done') : null;
+  const plan = planSession({ queueLeft, dailyAdded: s.dailyAdded, dailyTotal: s.dailyTotal, nextUnit: nextUnit ? (nextUnit.topic || nextUnit.title) : '', dayNum: Math.floor(Date.now() / 86400000) });
+  const session = loadSession();
   const courseCard = s.nextUnitTitle
     ? card('teacher', 'Урок курса', s.nextUnitTitle, 'Начать', '#teacher', false)
     : card('teacher', 'Курс', s.hasCourse ? 'Курс пройден' : 'Программа ещё не создана', s.hasCourse ? 'Открыть' : 'Создать', '#teacher', s.hasCourse);
@@ -121,8 +139,9 @@ async function render(container) {
   container.innerHTML = `
     <h1 class="sr-only">Сегодня</h1>
     ${heroHtml(stats)}
+    ${sessionCta(session, goal, plan)}
     ${goalHtml(goal)}
-    <h2 class="section-label">Занятия</h2>
+    <h2 class="section-label">Или выберите сами</h2>
     <div class="td-list">
       ${card('study', 'Повторение', s.due > 0 ? `Карточек на сегодня: ${s.due}` : 'На сегодня всё повторено', s.due > 0 ? 'Повторять' : 'Открыть', '#study', s.due === 0)}
       ${card('daily', '5 слов дня', dailyDone ? `Готово: ${s.dailyAdded} из ${s.dailyTotal}` : `Добавлено ${s.dailyAdded} из ${s.dailyTotal}`, dailyDone ? 'Открыть' : 'Учить', '#daily', dailyDone)}
@@ -133,6 +152,8 @@ async function render(container) {
     </div>
   `;
   container.querySelectorAll('[data-go]').forEach((b) => { b.onclick = () => { location.hash = b.dataset.go; }; });
+  const start = container.querySelector('#td-start');
+  if (start) start.onclick = () => startSession();
 }
 
 registerFeature({ id: 'today', title: 'Сегодня', icon: '☀️', order: 4, render });

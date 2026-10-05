@@ -6,6 +6,8 @@ import { enableWordPick } from './wordpick.js';
 import { logMistakes, mistakesFromLesson } from './mistakes.js';
 import { recordActivity } from './activity.js';
 import { recordStudyDay } from './stats.js';
+import { getSetting } from './db.js';
+import { stagedStatus } from './util.js';
 
 const DEFAULT_GOAL = 'Разговорный бытовой испанский для повседневной жизни в районе Бенидорма';
 let lesson = null;
@@ -104,13 +106,15 @@ async function startLesson(container, topic, unitId) {
   busy = true;
   currentUnitId = unitId || null;
   const status = container.querySelector('#tch-status');
-  if (status) status.textContent = 'Готовлю урок под твой уровень…';
+  const stop = status ? stagedStatus(status, ['Готовлю урок под ваш уровень…', 'Подбираю упражнения…', 'Второй преподаватель проверяет ответы…']) : () => {};
   try {
     const profile = await buildProfile();
     lesson = await generateLesson(profile, topic);
+    stop();
     if (!container.querySelector('#tch-status')) return;
     renderLesson(container);
   } catch (err) {
+    stop();
     const s = container.querySelector('#tch-status');
     if (s) s.textContent = err.message;
   } finally {
@@ -189,7 +193,7 @@ async function render(container) {
   } else {
     container.innerHTML = `<h1>Учитель</h1>${profileCard(profile, e)}
       <div class="study-card"><div class="word-ex">У тебя ещё нет программы. Составлю персональный курс под твой уровень и цель.</div></div>
-      <label>Цель обучения<input id="tch-goal" type="text" value="${e(DEFAULT_GOAL)}"></label>
+      <label>Цель обучения<input id="tch-goal" type="text" value="${e((await getSetting('goal')) || DEFAULT_GOAL)}"></label>
       <button id="tch-build">📚 Составить программу</button>
       <details class="tch-extra"><summary>Или сразу свободный урок</summary>
         <label>Тема<input id="tch-topic" type="text" placeholder="напр. артикли"></label>

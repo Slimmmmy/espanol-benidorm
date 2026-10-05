@@ -7,6 +7,7 @@ import { recordActivity } from './activity.js';
 import { speak } from './tts.js';
 import { escapeHtml } from './util.js';
 import { stripArticle } from './exercises.js';
+import { icon } from './icons.js';
 
 const WORD_RE = /([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:['’][A-Za-z]+)?)/;
 const LATIN = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/;
@@ -30,7 +31,7 @@ export async function saveWordWithId(data) {
   const now = Date.now();
   const id = await putWord({
     es: data.es, ru: data.ru || '', example: data.example || '', exampleRu: data.exampleRu || '',
-    pos: data.pos || '', gender: data.gender || '', local: data.local || '', createdAt: now, ...newCard(now),
+    pos: data.pos || '', gender: data.gender || '', local: data.local || '', source: data.source || 'tap', createdAt: now, ...newCard(now),
   });
   await recordActivity('newWord');
   return { status: 'added', id };
@@ -65,7 +66,7 @@ async function openPopup(word, context) {
   const e = escapeHtml;
   const pop = popupEl();
   pop.innerHTML = `<div class="wp-panel">
-    <div class="wp-head"><b>${e(word)}</b><button class="wp-x" data-wp="close">✕</button></div>
+    <div class="wp-head"><b>${e(word)}</b><button class="wp-x" data-wp="close" aria-label="Закрыть">${icon('close', 'ic ic-sm')}</button></div>
     <div class="wp-body"><p class="status">Перевожу…</p></div>
   </div>`;
   pop.classList.add('open');
@@ -85,7 +86,7 @@ async function openPopup(word, context) {
       ${w.example ? `<div class="word-ex">${e(w.example)}${w.exampleRu ? `<br><span class="muted">${e(w.exampleRu)}</span>` : ''}</div>` : ''}
       ${w.local ? `<div class="word-local">📍 ${e(w.local)}</div>` : ''}
       <div class="word-actions">
-        <button data-wp="say">🔊</button>
+        <button data-wp="say" aria-label="Озвучить">${icon('sound', 'ic ic-sm')}</button>
         ${exists ? '<span class="daily-added">✓ уже в словаре</span>' : '<button data-wp="add">＋ В словарь</button>'}
       </div>`;
     body.querySelector('[data-wp="say"]').onclick = () => speak(w.es);

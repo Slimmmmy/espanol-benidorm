@@ -10,6 +10,7 @@ import { enableWordPick } from './wordpick.js';
 import { logMistakes } from './mistakes.js';
 import { recordActivity } from './activity.js';
 import { getStats } from './stats.js';
+import { icon } from './icons.js';
 
 let busy = false;
 let profileSnapshot = null; // профиль фиксируется на время беседы — стабильное начало запроса для кэша
@@ -27,7 +28,7 @@ function bubblesHtml(history) {
     if (m.role === 'user') {
       return `<div class="chat-msg chat-me">${m.voice ? '🎤 ' : ''}${e(m.content)}</div>`;
     }
-    return `<div class="chat-msg chat-bot">${renderMarkdown(m.content)}${m.noSpeak ? '' : `<button class="chat-say" data-say="${i}" title="Озвучить">🔊</button>`}</div>`;
+    return `<div class="chat-msg chat-bot">${renderMarkdown(m.content)}${m.noSpeak ? '' : `<button class="chat-say" data-say="${i}" aria-label="Озвучить">${icon('sound', 'ic ic-sm')}</button>`}</div>`;
   }).join('');
 }
 
@@ -125,7 +126,7 @@ async function render(container) {
     <h1>Наставник</h1>
     <div id="chat-log" class="chat-log"></div>
     <div class="chat-bar">
-      <button id="chat-mic" title="Сказать по-испански">🎤</button>
+      <button id="chat-mic" aria-label="Сказать по-испански">${icon('mic')}</button>
       <input id="chat-input" type="text" placeholder="Спроси наставника…" autocapitalize="sentences">
       <button id="chat-send">➤</button>
     </div>

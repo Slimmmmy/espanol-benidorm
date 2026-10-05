@@ -4,6 +4,7 @@ import { gradeSpeech } from './claude.js';
 import { speak } from './tts.js';
 import { similarity, escapeHtml } from './util.js';
 import { recordActivity } from './activity.js';
+import { icon } from './icons.js';
 
 const PHRASES = [
   'El perro de San Roque no tiene rabo.',
@@ -28,8 +29,8 @@ async function render(container) {
     <div class="study-card">
       <div class="study-es"><b id="sp-phrase">${e(PHRASES[idx])}</b></div>
       <div class="dlg-controls">
-        <button id="sp-listen">🔊 Образец</button>
-        <button id="sp-rec">🎤 Говорить</button>
+        <button id="sp-listen">${icon('sound', 'ic ic-sm')} Образец</button>
+        <button id="sp-rec">${icon('mic', 'ic ic-sm')} Говорить</button>
         <button id="sp-next">Другая фраза</button>
       </div>
       <p id="sp-status" class="status"></p>

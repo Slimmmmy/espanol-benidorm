@@ -112,3 +112,21 @@ export function renderMarkdown(text) {
   closeList();
   return out.join('');
 }
+
+// Долгие запросы ИИ: вместо одной строки — сменяющиеся шаги («распознаю → перевожу → выбираю слова»).
+// Возвращает функцию остановки. Последний шаг остаётся, пока запрос не закончится.
+export function stagedStatus(el, steps, everyMs = 6000) {
+  let i = 0;
+  const started = Date.now();
+  const paint = () => {
+    if (!el || !el.isConnected) { clearInterval(timer); return; }
+    const sec = Math.round((Date.now() - started) / 1000);
+    el.textContent = `${steps[i]}${sec >= 5 ? ` · ${sec} с` : ''}`;
+  };
+  const timer = setInterval(() => {
+    if (i < steps.length - 1 && Date.now() - started >= (i + 1) * everyMs) i++;
+    paint();
+  }, 1000);
+  paint();
+  return () => clearInterval(timer);
+}
