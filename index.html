@@ -25,6 +25,7 @@
     import { initVoice } from './js/tts.js';
     import { refreshBadge } from './js/reminders.js';
     import { initCapture, processQueue } from './js/capture.js';
+    import { ensureWordUids } from './js/db.js';
     import './js/today.js';
     import './js/teacher.js';
     import './js/chat.js';
@@ -39,6 +40,9 @@
     import './js/assignments.js';
     import './js/progress.js';
     import './js/settings.js';
+    // Просим браузер не стирать данные при нехватке места (Safari иначе может очистить их через 7 дней без визитов).
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    ensureWordUids().catch(() => {});
     startApp();
     initCapture();
     await initVoice();

@@ -78,3 +78,32 @@ test('mergeSettings: tutorMemory объединяется без дублей', 
   assert.equal(out.length, 3);
   assert.ok(out.includes('Цель: разговорный'));
 });
+
+test('mergeWords: удалённое слово не возвращается с другого устройства', () => {
+  const remote = [{ es: 'perro', ru: 'собака', createdAt: 100, updatedAt: 200 }];
+  const out = mergeWords([], remote, [{ key: 'perro', at: 300 }]);
+  assert.equal(out.length, 0);
+});
+
+test('mergeWords: слово, добавленное заново после удаления, остаётся', () => {
+  const local = [{ es: 'perro', ru: 'собака', createdAt: 400, updatedAt: 400 }];
+  const out = mergeWords(local, [], [{ key: 'perro', at: 300 }]);
+  assert.equal(out.length, 1);
+});
+
+test('mergeWords: свежее по updatedAt, uid сохраняется', () => {
+  const a = [{ id: 1, es: 'gato', ru: 'кот', uid: 'w1', lastReview: 900, updatedAt: 500 }];
+  const b = [{ id: 7, es: 'gato', ru: 'кошка', lastReview: 100, updatedAt: 1000 }];
+  const [w] = mergeWords(a, b);
+  assert.equal(w.ru, 'кошка');
+  assert.equal(w.uid, 'w1');
+  assert.equal(w.id, undefined);
+});
+
+test('mergeSnapshots: пометки удаления объединяются и применяются', () => {
+  const local = { words: [], mistakes: [], settings: { deletedWords: [{ key: 'perro', at: 300 }] } };
+  const remote = { words: [{ es: 'perro', createdAt: 100 }, { es: 'casa', createdAt: 100 }], mistakes: [], settings: { deletedWords: [{ key: 'mesa', at: 50 }] } };
+  const m = mergeSnapshots(local, remote);
+  assert.deepEqual(m.words.map((w) => w.es), ['casa']);
+  assert.deepEqual(m.settings.deletedWords.map((t) => t.key).sort(), ['mesa', 'perro']);
+});

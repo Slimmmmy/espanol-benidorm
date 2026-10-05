@@ -6,8 +6,10 @@ function normEs(s) { return String(s || '').trim().toLowerCase(); }
 
 function freshness(w) { return [w.reps || 0, w.due || 0, w.createdAt || 0]; }
 
-// Карточка с более поздним повтором — свежее (FSRS); для старых карточек — по числу повторов.
+// Свежее та версия, что изменена позже (updatedAt); без него — по последнему повтору (FSRS),
+// а для старых карточек — по числу повторов.
 function fresher(a, b) {
+  if (a.updatedAt && b.updatedAt && a.updatedAt !== b.updatedAt) return a.updatedAt > b.updatedAt ? a : b;
   if ((a.lastReview || 0) !== (b.lastReview || 0)) return (a.lastReview || 0) > (b.lastReview || 0) ? a : b;
   return fresherLegacy(a, b);
 }
@@ -20,15 +22,44 @@ function fresherLegacy(a, b) {
   return a;
 }
 
-export function mergeWords(a, b) {
+// Пометки об удалении: слово, удалённое позже последнего изменения, не возвращается с другого устройства.
+function deletedAt(tombstones) {
+  const m = new Map();
+  for (const t of tombstones || []) {
+    if (!t || !t.key) continue;
+    m.set(t.key, Math.max(m.get(t.key) || 0, t.at || 0));
+  }
+  return m;
+}
+
+export function mergeWords(a, b, tombstones) {
   const map = new Map();
   for (const w of [...(a || []), ...(b || [])]) {
     const k = normEs(w.es);
     if (!k) continue;
     const { id, ...rest } = w;
-    map.set(k, map.has(k) ? fresher(map.get(k), rest) : rest);
+    if (map.has(k)) {
+      const prev = map.get(k);
+      const win = fresher(prev, rest);
+      map.set(k, { ...win, uid: win.uid || prev.uid || rest.uid });
+    } else {
+      map.set(k, rest);
+    }
   }
-  return [...map.values()];
+  const dead = deletedAt(tombstones);
+  return [...map.entries()]
+    .filter(([k, w]) => !(dead.has(k) && dead.get(k) >= (w.updatedAt || w.createdAt || 0)))
+    .map(([, w]) => w);
+}
+
+export function mergeTombstones(a, b) {
+  const m = new Map();
+  for (const t of [...(a || []), ...(b || [])]) {
+    if (!t || !t.key) continue;
+    const prev = m.get(t.key);
+    if (!prev || (t.at || 0) > (prev.at || 0)) m.set(t.key, t);
+  }
+  return [...m.values()].sort((x, y) => (x.at || 0) - (y.at || 0)).slice(-500);
 }
 
 export function mergeMistakes(a, b) {
@@ -135,6 +166,7 @@ export function mergeSettings(a, b) {
   if (A.roleplayHistory || B.roleplayHistory) out.roleplayHistory = mergeRoleplay(A.roleplayHistory, B.roleplayHistory);
   if (A.readerPages || B.readerPages) out.readerPages = mergeReaderPages(A.readerPages, B.readerPages);
   if (A.inbox || B.inbox) out.inbox = mergeInbox(A.inbox, B.inbox);
+  if (A.deletedWords || B.deletedWords) out.deletedWords = mergeTombstones(A.deletedWords, B.deletedWords);
   for (const key of new Set([...Object.keys(A), ...Object.keys(B)])) {
     if (key.startsWith('activity-')) out[key] = mergeActivity(A[key], B[key]);
     if (key.startsWith('daily-')) {
@@ -146,9 +178,10 @@ export function mergeSettings(a, b) {
 }
 
 export function mergeSnapshots(local, remote) {
+  const settings = mergeSettings((local || {}).settings, (remote || {}).settings);
   return {
-    words: mergeWords((local || {}).words, (remote || {}).words),
+    words: mergeWords((local || {}).words, (remote || {}).words, settings.deletedWords),
     mistakes: mergeMistakes((local || {}).mistakes, (remote || {}).mistakes),
-    settings: mergeSettings((local || {}).settings, (remote || {}).settings),
+    settings,
   };
 }
