@@ -7,7 +7,7 @@ const ES_NAMES = {
   today: 'Hoy', teacher: 'El libro', chat: 'Charla', study: 'Repaso', daily: 'Palabras del día',
   roleplay: 'Escenas', dictionary: 'Diccionario', listening: 'Escuchar', speech: 'Pronunciación',
   grammar: 'Gramática', assignments: 'Deberes', progress: 'Progreso', settings: 'Ajustes', reader: 'Lectura',
-  practice: 'Práctica', session: 'La sesión', drills: 'Entrenamiento', stories: 'Historias', placement: 'Nivel', voice: 'Voz', notify: 'Avisos',
+  practice: 'Práctica', session: 'La sesión', drills: 'Entrenamiento', stories: 'Historias', placement: 'Nivel', voice: 'Voz', notify: 'Avisos', convo: 'Mensajes',
 };
 
 // Пять вкладок вместо четырнадцати разделов. Остальные экраны живут внутри вкладок.
@@ -22,7 +22,7 @@ const TAB_OF = {
   today: 'today', session: 'today', daily: 'today',
   study: 'review', drills: 'review',
   practice: 'practice', stories: 'practice', roleplay: 'practice', reader: 'practice', listening: 'practice', speech: 'practice', assignments: 'practice',
-  chat: 'mentor', teacher: 'mentor', grammar: 'mentor',
+  chat: 'mentor', teacher: 'mentor', grammar: 'mentor', convo: 'mentor',
   dictionary: 'dictionary',
 };
 // Наставник — один «человек»: чат, уроки курса и проверка фразы переключаются сверху.
@@ -30,6 +30,7 @@ export const MENTOR_VIEWS = [
   { id: 'chat', title: 'Чат' },
   { id: 'teacher', title: 'Учебник' },
   { id: 'grammar', title: 'Фраза' },
+  { id: 'convo', title: 'Переписка' },
 ];
 
 export const tabOf = (screenId) => TAB_OF[screenId] || null;

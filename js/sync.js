@@ -1,7 +1,7 @@
 import { getSetting, setSetting, exportAll, getAllMistakes, replaceWordsPreservingIds, bulkReplaceMistakes, ensureWordUids } from './db.js';
 import { mergeSnapshots } from './merge.js';
 
-const SECRET_KEYS = ['apiKey', 'supabaseUrl', 'supabaseKey', 'syncCode', 'googleTtsKey', 'vapid', 'pushEndpoint'];
+const SECRET_KEYS = ['apiKey', 'supabaseUrl', 'supabaseKey', 'syncCode', 'googleTtsKey', 'vapid', 'pushEndpoint', 'chatReviews'];
 
 export async function getSyncConfig() {
   return {

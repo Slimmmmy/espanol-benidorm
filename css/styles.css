@@ -898,3 +898,37 @@ button.hub-tile { margin: 0; text-align: left; font-weight: 400; align-items: fl
 .tb-answer { margin-top: 12px; }
 .tb-stage { margin: 22px 0 0; color: var(--sea); font-size: 0.75rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .tb-result:not(:empty) { margin-top: 8px; padding: 8px 10px; background: var(--surface); border-radius: var(--r-sm); }
+
+/* ── Переписка ──────────────────────────────────────── */
+.cv-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.cv-pick-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 10px; text-align: center;
+  background: var(--surface); border: 1px dashed var(--sea); border-radius: var(--r-md); color: var(--ink); font-weight: 600; cursor: pointer; }
+.cv-pick-btn .ic { color: var(--sea); width: 28px; height: 28px; }
+.cv-shots { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
+.cv-shots:empty { display: none; }
+.cv-thumb { position: relative; flex: none; }
+.cv-thumb img { display: block; height: 120px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.cv-thumb button { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; min-width: 0; min-height: 0; padding: 0; margin: 0; display: grid; place-items: center;
+  border-radius: 50%; background: var(--scrim); color: #fff; border: 0; }
+.cv-score { display: flex; gap: 12px; margin-top: 10px; font-weight: 700; font-size: 0.875rem; }
+.cv-s-ok { color: var(--ok); } .cv-s-minor { color: var(--warn); } .cv-s-error { color: var(--danger); }
+.cv-log { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+.cv-msg { max-width: 88%; display: flex; flex-direction: column; gap: 4px; }
+.cv-me { align-self: flex-end; align-items: flex-end; }
+.cv-them { align-self: flex-start; }
+.cv-bubble { padding: 9px 13px; border-radius: 18px; line-height: 1.45; background: var(--surface); border: 1px solid var(--line); }
+.cv-me .cv-bubble { background: var(--sea-soft); border-color: transparent; border-bottom-right-radius: 6px; }
+.cv-them .cv-bubble { border-bottom-left-radius: 6px; }
+.cv-me.cv-ok .cv-bubble { box-shadow: inset 3px 0 0 var(--ok); }
+.cv-me.cv-minor .cv-bubble { box-shadow: inset 3px 0 0 var(--warn); }
+.cv-me.cv-error .cv-bubble { box-shadow: inset 3px 0 0 var(--danger); }
+.cv-badge { display: block; margin-top: 4px; font-size: 0.75rem; font-weight: 700; }
+.cv-ok .cv-badge { color: var(--ok); } .cv-minor .cv-badge { color: var(--warn); } .cv-error .cv-badge { color: var(--danger); }
+.cv-tr { color: var(--muted); font-size: 0.8125rem; }
+.cv-details { font-size: 0.875rem; width: 100%; }
+.cv-details:empty { display: none; }
+.cv-me .cv-details { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; }
+.cv-fix { margin: 4px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.cv-fix .tb-say { width: 28px; height: 28px; }
+.cv-why { color: var(--ink-2); margin-top: 4px; }
+.cv-add { width: auto; margin: 0; padding: 6px 10px; }
