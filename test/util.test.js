@@ -107,3 +107,39 @@ test('renderMarkdown: пустой текст → пусто', () => {
   assert.equal(renderMarkdown(''), '');
   assert.equal(renderMarkdown(null), '');
 });
+
+import { repairJson } from '../js/util.js';
+
+test('repairJson: закрывает оборванный объект', () => {
+  assert.deepEqual(repairJson('{"a":1,"b":2'), { a: 1, b: 2 });
+});
+
+test('repairJson: закрывает оборванную строку', () => {
+  assert.deepEqual(repairJson('{"intro":"Текст про план'), { intro: 'Текст про план' });
+});
+
+test('repairJson: отбрасывает незавершённый элемент массива', () => {
+  const out = repairJson('{"sections":[{"heading":"Раз","text":"ок"},{"heading":"Два","tex');
+  assert.equal(out.sections.length, 2);
+  assert.equal(out.sections[0].text, 'ок');
+  assert.deepEqual(out.sections[1], { heading: 'Два' }); // обрубленный ключ отброшен
+});
+
+test('repairJson: ключ без значения отбрасывается', () => {
+  assert.deepEqual(repairJson('{"a":1,"b":'), { a: 1 });
+});
+
+test('repairJson: спасать нечего → null', () => {
+  assert.equal(repairJson('не json'), null);
+});
+
+test('extractJson: чинит оборванный ответ модели', () => {
+  const truncated = '{"intro":"Привет","sections":[{"heading":"ir a","text":"Схема ir + a + inf","examples":[{"es":"Voy a ir","ru":"Я пойду"},{"es":"Vamos a com';
+  const out = extractJson(truncated);
+  assert.equal(out.intro, 'Привет');
+  assert.equal(out.sections[0].examples.length, 1);
+});
+
+test('extractJson: целый JSON по-прежнему разбирается строго', () => {
+  assert.deepEqual(extractJson('текст {"a":[1,2]} хвост'), { a: [1, 2] });
+});

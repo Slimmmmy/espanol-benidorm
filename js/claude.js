@@ -16,6 +16,8 @@ const LEGACY_MODELS = { 'claude-sonnet-4-6': 'claude-sonnet-5-5' };
 export const resolveModel = (id, fallback) => LEGACY_MODELS[id] || id || fallback;
 
 const API_URL = 'https://api.anthropic.com/v1/messages';
+// Потолок для автоповтора, когда ответ оборвался по лимиту токенов.
+export const MAX_OUTPUT_TOKENS = 8000;
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
 // Тело запроса к Messages API. Чистая функция.
@@ -54,7 +56,7 @@ async function post(apiKey, req) {
 }
 
 // tier: 'fast' — короткие задачи (словарь, проверки); 'chat' — разговор, сценки, уроки.
-export async function callClaude({ system, messages, model, maxTokens = 1024, tier = 'fast', cache = false, schema = null }) {
+export async function callClaude({ system, messages, model, maxTokens = 1024, tier = 'fast', cache = false, schema = null, retryOnTruncate = true }) {
   const apiKey = await getSetting('apiKey');
   if (!apiKey) {
     throw new Error('Не задан API-ключ. Откройте Настройки и вставьте ключ.');
@@ -82,6 +84,14 @@ export async function callClaude({ system, messages, model, maxTokens = 1024, ti
 
   const data = await res.json();
   if (data.stop_reason === 'refusal') throw new Error('Модель отказалась отвечать на этот запрос. Переформулируйте, пожалуйста.');
+  // Ответ упёрся в лимит токенов — JSON оборван. Один раз повторяем с удвоенным запасом.
+  if (data.stop_reason === 'max_tokens' && retryOnTruncate && maxTokens < MAX_OUTPUT_TOKENS) {
+    return callClaude({
+      system, messages, model: chosenModel, tier, cache, schema,
+      maxTokens: Math.min(MAX_OUTPUT_TOKENS, maxTokens * 2),
+      retryOnTruncate: false,
+    });
+  }
   const block = (data.content || []).find((b) => b.type === 'text');
   return block ? block.text : '';
 }
@@ -237,7 +247,7 @@ export async function generateTheory(brief, profile) {
     schema: S.TEXTBOOK_THEORY,
     tier: 'chat',
     messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\n\n${brief}` }],
-    maxTokens: 4000,
+    maxTokens: 6000,
   });
   return extractJson(text);
 }
@@ -250,7 +260,7 @@ export async function generateTextbookExercises(step, brief, theory, profile) {
     schema: S.TEXTBOOK_EXERCISES,
     tier: 'chat',
     messages: [{ role: 'user', content: `Профиль ученика: ${JSON.stringify(profile)}\n\n${brief}${recap}` }],
-    maxTokens: 2500,
+    maxTokens: 4000,
   });
   const lesson = normalizeLesson({ topic: step.topic, title: step.title, ...extractJson(text) });
   try {

@@ -16,11 +16,70 @@ export function extractJson(text) {
   const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence) s = fence[1].trim();
   const start = s.indexOf('{');
+  if (start === -1) throw new Error('В ответе модели не найден JSON.');
   const end = s.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error('В ответе модели не найден JSON.');
+  if (end > start) {
+    try { return JSON.parse(s.slice(start, end + 1)); } catch (e) { /* ниже пробуем починить */ }
   }
-  return JSON.parse(s.slice(start, end + 1));
+  const repaired = repairJson(s.slice(start));
+  if (repaired) return repaired;
+  throw new Error('Ответ модели оборвался. Нажмите «Ещё раз».');
+}
+
+// Разбор структуры JSON с учётом строк: открытые скобки, оборванная строка, последняя запятая.
+function scanJson(s) {
+  const stack = [];
+  let inStr = false, esc = false, lastComma = -1;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === '{' || ch === '[') stack.push(ch);
+    else if (ch === '}' || ch === ']') stack.pop();
+    else if (ch === ',' && stack.length) lastComma = i;
+  }
+  return { stack, inStr, esc, lastComma };
+}
+
+// Закрывает оборванную строку и все незакрытые скобки.
+function closeJson(s) {
+  const { stack, inStr, esc } = scanJson(s);
+  if (!stack.length) return null;
+  let out = esc ? s.slice(0, -1) : s;
+  if (inStr) out += '"';
+  out = out.replace(/[\s,]+$/, '');
+  for (let i = stack.length - 1; i >= 0; i--) out += stack[i] === '{' ? '}' : ']';
+  return out;
+}
+
+// Чинит JSON, оборванный на полуслове (ответ модели упёрся в лимит токенов):
+// закрывает скобки, а если не парсится — отбрасывает последний незавершённый элемент.
+// Возвращает объект или null, если спасти нечего.
+export function repairJson(src) {
+  let s = String(src == null ? '' : src).trim();
+  for (let guard = 0; guard < 400 && s.length > 1; guard++) {
+    const { lastComma, inStr } = scanJson(s);
+    // Обрыв пришёлся на середину строки — сперва выбрасываем этот незавершённый элемент,
+    // чтобы в уроке не осталось обрубленных фраз.
+    if (inStr && lastComma > 0) {
+      const dropped = closeJson(s.slice(0, lastComma));
+      if (dropped) {
+        try { return JSON.parse(dropped); } catch (e) { /* ниже попробуем закрыть строку */ }
+      }
+    }
+    const cand = closeJson(s);
+    if (cand) {
+      try { return JSON.parse(cand); } catch (e) { /* пробуем более короткий вариант */ }
+    }
+    if (lastComma <= 0) return null;
+    s = s.slice(0, lastComma);
+  }
+  return null;
 }
 
 export function normalizeText(s) {
