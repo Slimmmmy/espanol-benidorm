@@ -1,6 +1,6 @@
 import { getSetting } from './db.js';
 import { extractJson, recentMessages } from './util.js';
-import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT, ROLEPLAY_SYSTEM, ROLEPLAY_DEBRIEF_SYSTEM, READER_SYSTEM, READER_QA_SYSTEM, CAPTURE_SYSTEM, LESSON_VERIFY_SYSTEM, TEXTBOOK_THEORY_SYSTEM, TEXTBOOK_EXERCISES_SYSTEM, TEXTBOOK_ASK_SYSTEM, CONVO_REVIEW_SYSTEM, CONVO_DRAFT_SYSTEM } from './prompts.js';
+import { WORD_ENRICH_SYSTEM, DIALOGUE_SYSTEM, GRAMMAR_SYSTEM, SPEECH_COACH_SYSTEM, DAILY_WORDS_SYSTEM, LESSON_GEN_SYSTEM, LESSON_REVIEW_SYSTEM, COURSE_GEN_SYSTEM, CHAT_TUTOR_SYSTEM, ASSIGNMENT_GEN_SYSTEM, ASSIGNMENT_CHECK_SYSTEM, MEMORY_EXTRACT_SYSTEM, VOICE_COACH_HINT, ROLEPLAY_SYSTEM, ROLEPLAY_DEBRIEF_SYSTEM, READER_SYSTEM, READER_QA_SYSTEM, CAPTURE_SYSTEM, LESSON_VERIFY_SYSTEM, TEXTBOOK_THEORY_SYSTEM, TEXTBOOK_EXERCISES_SYSTEM, TEXTBOOK_ASK_SYSTEM, CONVO_REVIEW_SYSTEM } from './prompts.js';
 import * as S from './schemas.js';
 import { topicsForLevel } from './curriculum.js';
 import { STORY_SYSTEM } from './prompts.js';
@@ -442,18 +442,6 @@ export async function reviewConversation(images, note = '') {
     schema: S.CONVO_REVIEW,
     messages: buildConvoMessages(images, note),
     maxTokens: 6000,
-    tier: 'chat',
-  });
-  return extractJson(text);
-}
-
-// Черновик ответа → проверка с учётом переписки (текст разбора, без картинок).
-export async function checkDraft(draft, convoText = '') {
-  const text = await callClaude({
-    system: CONVO_DRAFT_SYSTEM,
-    schema: S.CONVO_DRAFT,
-    messages: [{ role: 'user', content: `${convoText ? `Переписка:\n${convoText}\n\n` : ''}Черновик ученика: ${draft}` }],
-    maxTokens: 800,
     tier: 'chat',
   });
   return extractJson(text);

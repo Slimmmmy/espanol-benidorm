@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tallSlices, convoStats, mistakesFromConvo, convoText } from '../js/convo.js';
+import { shotsLabel } from '../js/chat.js';
 import { buildConvoMessages } from '../js/claude.js';
 import { CONVO_REVIEW } from '../js/schemas.js';
 import { MISTAKE_TOPICS } from '../js/curriculum.js';
@@ -34,9 +35,18 @@ test('convoStats и mistakesFromConvo: считают только свои со
   assert.deepEqual(convoStats(null), { mine: 0, ok: 0, minor: 0, error: 0, other: 0 });
 });
 
-test('convoText: переписка для проверки черновика', () => {
-  assert.equal(convoText(R).split('\n')[0], 'Собеседник: Hola! q tal el piso?');
-  assert.ok(convoText(R).includes('Я: El grifo es roto'));
+test('convoText: разбор текстом для контекста наставника', () => {
+  const t = convoText({ app: 'WhatsApp', context: 'хозяин квартиры', ...R, overall: 'Путаете ser/estar.' });
+  assert.equal(t.split('\n')[0], 'Разбор переписки (WhatsApp): хозяин квартиры');
+  assert.ok(t.includes('Собеседник: Hola! q tal el piso?'));
+  assert.ok(t.includes('Я: El grifo es roto — ✗ ошибка; правильно: El grifo está roto; естественнее: Se ha roto el grifo'));
+  assert.ok(t.includes('Итог: Путаете ser/estar.'));
+});
+
+test('shotsLabel: склонение', () => {
+  assert.equal(shotsLabel(1), '1 скриншот переписки');
+  assert.equal(shotsLabel(3), '3 скриншота переписки');
+  assert.equal(shotsLabel(5), '5 скриншотов переписки');
 });
 
 test('buildConvoMessages: картинки по порядку + контекст', () => {
