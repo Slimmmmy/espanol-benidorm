@@ -128,3 +128,27 @@ export const TEXTBOOK_EXERCISES = obj({
 });
 
 export const TEXTBOOK_ASK = obj({ answer: str, examples: arr(EXAMPLE) });
+
+// Разбор переписки по скриншотам: каждое сообщение — чьё оно, верно ли, как сказал бы испанец.
+export const CONVO_REVIEW = obj({
+  app: str,
+  context: str,
+  register: str,
+  messages: arr(obj({
+    from: { type: 'string', enum: ['me', 'them'] },
+    text: str,
+    translation: str,
+    verdict: { type: 'string', enum: ['ok', 'minor', 'error', 'not_spanish', ''] },
+    corrected: str,
+    natural: str,
+    explanation: str,
+    topic: topicOrNone,
+  })),
+  slang: arr(obj({ es: str, meaning: str })),
+  overall: str,
+  tips: arr(str),
+  reply: obj({ es: str, ru: str }),
+});
+
+// Проверка ответа перед отправкой — с учётом переписки.
+export const CONVO_DRAFT = obj({ ok: bool, corrected: str, natural: str, explanation: str, topic: topicOrNone });
