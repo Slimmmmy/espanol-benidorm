@@ -149,6 +149,3 @@ export const CONVO_REVIEW = obj({
   tips: arr(str),
   reply: obj({ es: str, ru: str }),
 });
-
-// Проверка ответа перед отправкой — с учётом переписки.
-export const CONVO_DRAFT = obj({ ok: bool, corrected: str, natural: str, explanation: str, topic: topicOrNone });
